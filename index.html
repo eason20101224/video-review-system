@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>视频审阅反馈系统</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #f5f5f7; color: #333; }
+    
+    /* 顶部项目栏 */
+    .top-bar {
+      background: #1f2937;
+      color: white;
+      padding: 10px 16px;
+      font-size: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .top-bar .project-name { font-weight: 600; }
+    .top-bar .deadline { color: #9ca3af; font-size: 13px; }
+
+    /* 关闭状态提示 */
+    .closed-state {
+      display: none;
+      text-align: center;
+      padding: 120px 20px;
+    }
+    .closed-state h2 { font-size: 20px; margin-bottom: 12px; color: #6b7280; }
+    .closed-state p { color: #9ca3af; }
+
+    /* 主容器 */
+    .main-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 2fr 1fr;
+      gap: 16px;
+    }
+
+    /* 视频区域 */
+    .video-section {
+      background: #000;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+    }
+    video {
+      width: 100%;
+      display: block;
+      max-height: 70vh;
+      background: #000;
+    }
+    .timeline-bar {
+      height: 28px;
+      background: #1f2937;
+      position: relative;
+      border-top: 1px solid #374151;
+    }
+    .marker {
+      position: absolute;
+      top: 0;
+      width: 2px;
+      height: 100%;
+      opacity: 0.9;
+    }
+    .marker.like { background: #22c55e; }
+    .marker.dislike { background: #ef4444; }
+
+    /* 右侧操作区 */
+    .control-section {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    /* 使用说明 */
+    .guide-card .guide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 15px;
+    }
+    .guide-card .guide-content {
+      margin-top: 12px;
+      font-size: 13px;
+      line-height: 1.6;
+      color: #666;
+      white-space: pre-line;
+      display: none;
+    }
+    .guide-card.expanded .guide-content { display: block; }
+
+    /* 反馈按钮 */
+    .btn-group {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .btn {
+      padding: 18px;
+      font-size: 16px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.15s;
+      min-height: 56px;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-like { background: #22c55e; color: white; }
+    .btn-dislike { background: #ef4444; color: white; }
+    .btn-primary { background: #3b82f6; color: white; width: 100%; }
+
+    /* 评价入口 */
+    .eval-entry { margin-top: auto; }
+
+    /* 表单弹窗 */
+    .form-modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .form-modal.show { display: flex; }
+    .form-box {
+      background: white;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 500px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+      position: relative;
+    }
+    .form-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .form-header h2 { font-size: 18px; margin-bottom: 6px; }
+    .form-header p { font-size: 13px; color: #666; }
+
+    .question { display: none; }
+    .question.active { display: block; }
+    .question-title {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    /* 星级评分 */
+    .star-group { margin-bottom: 16px; }
+    .star-label { font-size: 14px; margin-bottom: 8px; color: #444; }
+    .stars {
+      display: flex;
+      gap: 8px;
+    }
+    .star {
+      font-size: 28px;
+      cursor: pointer;
+      color: #ddd;
+      transition: color 0.2s;
+    }
+    .star.active { color: #fbbf24; }
+
+    /* 选项 */
+    .option-item {
+      padding: 12px 14px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      margin-bottom: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .option-item:hover { border-color: #3b82f6; }
+    .option-item.selected {
+      border-color: #3b82f6;
+      background: #eff6ff;
+      color: #1d4ed8;
+    }
+    .option-item.multi.selected { background: #eff6ff; }
+
+    .other-input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      margin-top: 8px;
+      font-size: 14px;
+      display: none;
+    }
+    .other-input.show { display: block; }
+
+    /* 封面图片选项 */
+    .cover-options {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .cover-option {
+      border: 2px solid #eee;
+      border-radius: 8px;
+      overflow: hidden;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .cover-option.selected {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.2);
+    }
+    .cover-option img {
+      width: 100%;
+      height: 90px;
+      object-fit: cover;
+      display: block;
+    }
+    .cover-option .opt-name {
+      padding: 6px;
+      text-align: center;
+      font-size: 13px;
+      background: #f9fafb;
+    }
+
+    /* 文本域 */
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 14px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    /* 表单底部按钮 */
+    .form-footer {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 24px;
+    }
+    .form-footer button {
+      flex: 1;
+      padding: 12px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    .btn-prev { background: #f3f4f6; color: #333; }
+    .btn-next { background: #3b82f6; color: white; }
+    .btn-submit { background: #22c55e; color: white; }
+
+    /* 提示弹窗 */
+    .toast {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 14px 24px;
+      border-radius: 8px;
+      z-index: 2000;
+      font-size: 14px;
+      display: none;
+    }
+    .toast.show { display: block; }
+
+    /* 悬浮说明按钮（横屏用） */
+    .float-guide-btn {
+      display: none;
+      position: fixed;
+      right: 16px;
+      bottom: 80px;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      z-index: 100;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    }
+
+    /* 响应式适配 */
+    @media (max-width: 1023px) {
+      .main-container {
+        grid-template-columns: 1fr;
+        padding: 12px;
+      }
+      video { max-height: 50vh; }
+    }
+
+    @media (max-width: 480px) {
+      .top-bar { font-size: 13px; padding: 8px 12px; }
+      .top-bar .deadline { font-size: 12px; }
+      .btn { padding: 14px; font-size: 15px; }
+      .form-box { padding: 20px 16px; }
+    }
+
+    /* 横屏模式 */
+    @media (orientation: landscape) and (max-height: 500px) {
+      .guide-card { display: none; }
+      .float-guide-btn { display: block; }
+      .main-container {
+        grid-template-columns: 2fr 1fr;
+        gap: 12px;
+        padding: 12px;
+      }
+      video { max-height: calc(100vh - 80px); }
+    }
+  </style>
+</head>
+<body>
+  <!-- 顶部项目栏 -->
+  <div class="top-bar">
+    <div class="project-name" id="projectName">加载中...</div>
+    <div class="deadline" id="deadlineText"></div>
+  </div>
+
+  <!-- 关闭状态 -->
+  <div class="closed-state" id="closedState">
+    <h2>当前暂无视频需要审阅</h2>
+    <p>感谢您的支持</p>
+  </div>
+
+  <!-- 主内容区 -->
+  <div class="main-container" id="mainContainer">
+    <!-- 左侧视频区 -->
+    <div class="video-section">
+      <video id="reviewVideo" controls playsinline>
+        <source src="" type="video/mp4">
+      </video>
+      <div class="timeline-bar" id="timelineBar"></div>
+    </div>
+
+    <!-- 右侧操作区 -->
+    <div class="control-section">
+      <!-- 使用说明 -->
+      <div class="card guide-card expanded" id="guideCard">
+        <div class="guide-header" onclick="toggleGuide()">
+          <span id="guideTitle">使用说明</span>
+          <span id="guideArrow">收起 ▲</span>
+        </div>
+        <div class="guide-content" id="guideContent"></div>
+      </div>
+
+      <!-- 反馈按钮 -->
+      <div class="card">
+        <div class="btn-group">
+          <button class="btn btn-like" id="likeBtn">👍 好看</button>
+          <button class="btn btn-dislike" id="dislikeBtn">👎 不好看</button>
+        </div>
+      </div>
+
+      <!-- 评价入口 -->
+      <div class="card eval-entry">
+        <button class="btn btn-primary" onclick="openForm()">填写完整评价</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 横屏悬浮说明按钮 -->
+  <button class="float-guide-btn" onclick="toggleGuide()">❓</button>
+
+  <!-- 评价表单弹窗 -->
+  <div class="form-modal" id="formModal">
+    <div class="form-box">
+      <div class="form-header">
+        <h2 id="formTitle">视频内容评价问卷</h2>
+        <p id="formDesc">感谢您抽出时间参与评价</p>
+      </div>
+
+      <!-- 第1题：星级评分 -->
+      <div class="question active" id="q1">
+        <div class="question-title" id="q1Title"></div>
+        <div id="starGroups"></div>
+      </div>
+
+      <!-- 第2题：低分原因 -->
+      <div class="question" id="q2">
+        <div class="question-title" id="q2Title"></div>
+        <div id="q2Content"></div>
+      </div>
+
+      <!-- 第3题：标题选择 -->
+      <div class="question" id="q3">
+        <div class="question-title" id="q3Title"></div>
+        <div id="q3Options"></div>
+        <input type="text" class="other-input" id="q3Other" placeholder="">
+      </div>
+
+      <!-- 第4题：封面选择 -->
+      <div class="question" id="q4">
+        <div class="question-title" id="q4Title"></div>
+        <div class="cover-options" id="q4Options"></div>
+        <div class="option-item" data-value="both" onclick="selectQ4(this)">都喜欢</div>
+        <div class="option-item" data-value="none" onclick="selectQ4(this)">都不喜欢</div>
+        <input type="text" class="other-input" id="q4Other" placeholder="">
+      </div>
+
+      <!-- 第5题：建议 -->
+      <div class="question" id="q5">
+        <div class="question-title" id="q5Title"></div>
+        <textarea id="q5Input" placeholder=""></textarea>
+      </div>
+
+      <div class="form-footer">
+        <button class="btn-prev" id="prevBtn" onclick="prevQuestion()" style="visibility:hidden;">上一题</button>
+        <button class="btn-next" id="nextBtn" onclick="nextQuestion()">下一题</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 提示 -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ========== 仅修改这两项配置 ==========
+    const SUPABASE_URL = 'https://gbosdkzcbqhrfsiqlbdf.supabase.co';
+    const SUPABASE_ANON_KEY = 'sb_publishable_9O4JqSBGphBwASfl8YKvxA__gQvXizO';
+    // =====================================
+
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const video = document.getElementById('reviewVideo');
+    const likeBtn = document.getElementById('likeBtn');
+    const dislikeBtn = document.getElementById('dislikeBtn');
+    const timelineBar = document.getElementById('timelineBar');
+
+    let config = {};
+    let userId = localStorage.getItem('review_user_id');
+    if (!userId) {
+      userId = 'user_' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem('review_user_id', userId);
+    }
+
+    // 反馈队列与防频繁点击
+    let feedbackQueue = [];
+    let clickTimestamps = [];
+    let isCoolingDown = false;
+
+    // 表单相关
+    let currentQuestion = 1;
+    const totalQuestions = 5;
+    let formAnswers = {
+      q1: [0,0,0,0,0],
+      q2: {},
+      q3: '', q3Other: '',
+      q4: '', q4Other: '',
+      q5: ''
+    };
+    let questionStartTime = 0;
+    let questionDurations = [0,0,0,0,0];
+
+    // 初始化
+    async function init() {
+      await loadConfig();
+      checkProjectStatus();
+      if (config.feedback_enabled === 'true' && !isExpired()) {
+        initVideo();
+        initFeedback();
+        startBatchUpload();
+      }
+    }
+
+    // 加载配置
+    async function loadConfig() {
+      const { data } = await supabase.from('form_config').select('*');
+      data.forEach(item => config[item.key] = item.value);
+      
+      document.getElementById('projectName').textContent = config.project_name;
+      document.getElementById('deadlineText').textContent = '截止时间：' + config.deadline;
+      document.getElementById('guideTitle').textContent = config.guide_title;
+      document.getElementById('guideContent').textContent = config.guide_content;
+    }
+
+    // 检查项目状态
+    function checkProjectStatus() {
+      const closed = config.feedback_enabled !== 'true' || isExpired();
+      document.getElementById('mainContainer').style.display = closed ? 'none' : 'grid';
+      document.getElementById('closedState').style.display = closed ? 'block' : 'none';
+    }
+
+    function isExpired() {
+      return new Date() > new Date(config.deadline);
+    }
+
+    // 初始化视频
+    function initVideo() {
+      video.src = config.video_url;
+      video.addEventListener('loadedmetadata', renderAllMarkers);
+    }
+
+    // 初始化反馈
+    function initFeedback() {
+      likeBtn.addEventListener('click', () => handleFeedback('like'));
+      dislikeBtn.addEventListener('click', () => handleFeedback('dislike'));
+    }
+
+    // 处理反馈点击
+    function handleFeedback(type) {
+      if (isCoolingDown || video.paused) return;
+
+      const now = Date.now();
+      clickTimestamps.push(now);
+      // 只保留3秒内的点击记录
+      clickTimestamps = clickTimestamps.filter(t => now - t < 3000);
+
+      // 防频繁判定：3秒内≥5次
+      if (clickTimestamps.length >= 5) {
+        triggerCooldown();
+        return;
+      }
+
+      const currentTime = parseFloat(video.currentTime.toFixed(1));
+      feedbackQueue.push({
+        time: currentTime,
+        type: type,
+        user_id: userId,
+        video_id: 'default'
+      });
+
+      renderMarker(currentTime, type);
+    }
+
+    // 触发冷却
+    function triggerCooldown() {
+      isCoolingDown = true;
+      video.pause();
+      likeBtn.disabled = true;
+      dislikeBtn.disabled = true;
+      showToast('请认真评价，不要频繁点击');
+
+      setTimeout(() => {
+        isCoolingDown = false;
+        likeBtn.disabled = false;
+        dislikeBtn.disabled = false;
+        clickTimestamps = [];
+      }, 3000);
+    }
+
+    // 渲染单个标记
+    function renderMarker(time, type) {
+      if (!video.duration) return;
+      const percent = (time / video.duration) * 100;
+      const marker = document.createElement('div');
+      marker.className = `marker ${type}`;
+      marker.style.left = `${percent}%`;
+      timelineBar.appendChild(marker);
+    }
+
+    // 渲染所有本地标记
+    function renderAllMarkers() {
+      timelineBar.innerHTML = '';
+      feedbackQueue.forEach(item => renderMarker(item.time, item.type));
+    }
+
+    // 批量上传，每5秒一次
+    function startBatchUpload() {
+      setInterval(async () => {
+        if (feedbackQueue.length === 0) return;
+        const batch = [...feedbackQueue];
+        feedbackQueue = [];
+        await supabase.from('feedback').insert(batch).catch(() => {
+          // 失败放回队列
+          feedbackQueue = [...batch, ...feedbackQueue];
+        });
+      }, 5000);
+
+      // 页面关闭前兜底提交
+      window.addEventListener('beforeunload', () => {
+        if (feedbackQueue.length > 0) {
+          navigator.sendBeacon(SUPABASE_URL + '/rest/v1/feedback', JSON.stringify(feedbackQueue));
+        }
+      });
+    }
+
+    // 使用说明折叠
+    function toggleGuide() {
+      document.getElementById('guideCard').classList.toggle('expanded');
+      const arrow = document.getElementById('guideArrow');
+      arrow.textContent = document.getElementById('guideCard').classList.contains('expanded') ? '收起 ▲' : '展开 ▼';
+    }
+
+    // 打开表单
+    function openForm() {
+      document.getElementById('formModal').classList.add('show');
+      currentQuestion = 1;
+      renderQuestion(1);
+      questionStartTime = Date.now();
+      initFormContent();
+    }
+
+    // 初始化表单内容
+    function initFormContent() {
+      document.getElementById('formTitle').textContent = config.form_title;
+      document.getElementById('formDesc').textContent = config.form_desc;
+      document.getElementById('q1Title').textContent = config.q1_title;
+      document.getElementById('q2Title').textContent = config.q2_title;
+      document.getElementById('q3Title').textContent = config.q3_title;
+      document.getElementById('q4Title').textContent = config.q4_title;
+      document.getElementById('q5Title').textContent = config.q5_title;
+      document.getElementById('q5Input').placeholder = config.q5_placeholder;
+      document.getElementById('q3Other').placeholder = config.q3_other_placeholder;
+      document.getElementById('q4Other').placeholder = config.q4_other_placeholder;
+
+      // 渲染第1题星级
+      const dims = [config.q1_dim1, config.q1_dim2, config.q1_dim3, config.q1_dim4, config.q1_dim5];
+      document.getElementById('starGroups').innerHTML = dims.map((dim, idx) => `
+        <div class="star-group">
+          <div class="star-label">${dim}</div>
+          <div class="stars" data-idx="${idx}">
+            ${[1,2,3,4,5].map(s => `<span class="star" data-score="${s}" onclick="setStar(${idx}, ${s})">★</span>`).join('')}
+          </div>
+        </div>
+      `).join('');
+
+      // 渲染第3题选项
+      document.getElementById('q3Options').innerHTML = `
+        <div class="option-item" data-value="title1" onclick="selectQ3(this)">${config.title1}</div>
+        <div class="option-item" data-value="title2" onclick="selectQ3(this)">${config.title2}</div>
+        <div class="option-item" data-value="both" onclick="selectQ3(this)">${config.q3_opt3}</div>
+        <div class="option-item" data-value="none" onclick="selectQ3(this)">${config.q3_opt4}</div>
+      `;
+
+      // 渲染第4题封面
+      document.getElementById('q4Options').innerHTML = `
+        <div class="cover-option" data-value="cover1" onclick="selectQ4(this)">
+          <img src="${config.cover1}" alt="封面1">
+          <div class="opt-name">封面A</div>
+        </div>
+        <div class="cover-option" data-value="cover2" onclick="selectQ4(this)">
+          <img src="${config.cover2}" alt="封面2">
+          <div class="opt-name">封面B</div>
+        </div>
+      `;
+    }
+
+    // 星级评分
+    function setStar(dimIdx, score) {
+      formAnswers.q1[dimIdx] = score;
+      const stars = document.querySelectorAll(`.stars[data-idx="${dimIdx}"] .star`);
+      stars.forEach((star, i) => {
+        star.classList.toggle('active', i < score);
+      });
+    }
+
+    // 第3题选择
+    function selectQ3(el) {
+      document.querySelectorAll('#q3 .option-item').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      formAnswers.q3 = el.dataset.value;
+      document.getElementById('q3Other').classList.toggle('show', el.dataset.value === 'none');
+    }
+
+    // 第4题选择
+    function selectQ4(el) {
+      document.querySelectorAll('#q4 .cover-option, #q4 .option-item').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      formAnswers.q4 = el.dataset.value;
+      document.getElementById('q4Other').classList.toggle('show', el.dataset.value === 'none');
+    }
+
+    // 切换题目
+    function renderQuestion(num) {
+      document.querySelectorAll('.question').forEach(q => q.classList.remove('active'));
+      document.getElementById('q' + num).classList.add('active');
+      
+      document.getElementById('prevBtn').style.visibility = num === 1 ? 'hidden' : 'visible';
+      const nextBtn = document.getElementById('nextBtn');
+      if (num === totalQuestions) {
+        nextBtn.textContent = '提交评价';
+        nextBtn.className = 'btn-submit';
+      } else {
+        nextBtn.textContent = '下一题';
+        nextBtn.className = 'btn-next';
+      }
+
+      // 第2题动态渲染
+      if (num === 2) {
+        renderQ2Content();
+      }
+    }
+
+    // 渲染第2题低分原因
+    function renderQ2Content() {
+      const dimNames = [config.q1_dim1, config.q1_dim2, config.q1_dim3, config.q1_dim4, config.q1_dim5];
+      const reasons = JSON.parse(config.q2_reasons);
+      let html = '';
+
+      dimNames.forEach((dim, idx) => {
+        if (formAnswers.q1[idx] <= 3 && formAnswers.q1[idx] > 0) {
+          const dimReasons = reasons[dim] || [];
+          html += `<div class="star-label" style="margin-top:12px;">${dim}</div>`;
+          dimReasons.forEach(reason => {
+            html += `
+              <div class="option-item multi" data-dim="${dim}" data-reason="${reason}" onclick="toggleQ2Reason(this)">
+                ${reason}
+              </div>
+            `;
+          });
+        }
+      });
+
+      if (!html) {
+        html = '<p style="color:#666; font-size:14px;">暂无低分维度，可直接下一题</p>';
+      }
+      document.getElementById('q2Content').innerHTML = html;
+    }
+
+    // 第2题多选切换
+    function toggleQ2Reason(el) {
+      el.classList.toggle('selected');
+      const dim = el.dataset.dim;
+      const reason = el.dataset.reason;
+      if (!formAnswers.q2[dim]) formAnswers.q2[dim] = [];
+      
+      if (el.classList.contains('selected')) {
+        if (!formAnswers.q2[dim].includes(reason)) formAnswers.q2[dim].push(reason);
+      } else {
+        formAnswers.q2[dim] = formAnswers.q2[dim].filter(r => r !== reason);
+      }
+    }
+
+    function prevQuestion() {
+      if (currentQuestion > 1) {
+        questionDurations[currentQuestion-1] = Math.floor((Date.now() - questionStartTime) / 1000);
+        currentQuestion--;
+        renderQuestion(currentQuestion);
+        questionStartTime = Date.now();
+      }
+    }
+
+    function nextQuestion() {
+      // 校验当前题
+      if (!validateQuestion(currentQuestion)) return;
+
+      questionDurations[currentQuestion-1] = Math.floor((Date.now() - questionStartTime) / 1000);
+
+      if (currentQuestion < totalQuestions) {
+        // 第2题只有有低分维度时才显示，否则跳过
+        if (currentQuestion === 1) {
+          const hasLowScore = formAnswers.q1.some(s => s <= 3 && s > 0);
+          if (!hasLowScore) {
+            currentQuestion = 3;
+            renderQuestion(3);
+            questionStartTime = Date.now();
+            return;
+          }
+        }
+        currentQuestion++;
+        renderQuestion(currentQuestion);
+        questionStartTime = Date.now();
+      } else {
+        submitForm();
+      }
+    }
+
+    // 校验题目
+    function validateQuestion(num) {
+      switch(num) {
+        case 1:
+          if (formAnswers.q1.some(s => s === 0)) {
+            showToast('请为所有维度打分');
+            return false;
+          }
+          return true;
+        case 3:
+          if (!formAnswers.q3) {
+            showToast('请选择一个选项');
+            return false;
+          }
+          if (formAnswers.q3 === 'none' && !document.getElementById('q3Other').value.trim()) {
+            showToast('请输入您感兴趣的标题方向');
+            return false;
+          }
+          formAnswers.q3Other = document.getElementById('q3Other').value.trim();
+          return true;
+        case 4:
+          if (!formAnswers.q4) {
+            showToast('请选择一个选项');
+            return false;
+          }
+          if (formAnswers.q4 === 'none' && !document.getElementById('q4Other').value.trim()) {
+            showToast('请描述您喜欢的封面风格');
+            return false;
+          }
+          formAnswers.q4Other = document.getElementById('q4Other').value.trim();
+          return true;
+        case 5:
+          const val = document.getElementById('q5Input').value.trim();
+          if (val.length < 5) {
+            showToast('请至少输入5个字的建议');
+            return false;
+          }
+          formAnswers.q5 = val;
+          return true;
+      }
+      return true;
+    }
+
+    // 提交表单
+    async function submitForm() {
+      const totalDuration = questionDurations.reduce((a,b) => a+b, 0);
+      const submitData = {
+        user_id: userId,
+        video_id: 'default',
+        total_duration: totalDuration,
+        q1_score1: formAnswers.q1[0],
+        q1_score2: formAnswers.q1[1],
+        q1_score3: formAnswers.q1[2],
+        q1_score4: formAnswers.q1[3],
+        q1_score5: formAnswers.q1[4],
+        q2_reasons: JSON.stringify(formAnswers.q2),
+        q3_choice: formAnswers.q3,
+        q3_other: formAnswers.q3Other,
+        q4_choice: formAnswers.q4,
+        q4_other: formAnswers.q4Other,
+        q5_suggestion: formAnswers.q5,
+        q1_duration: questionDurations[0],
+        q2_duration: questionDurations[1],
+        q3_duration: questionDurations[2],
+        q4_duration: questionDurations[3],
+        q5_duration: questionDurations[4]
+      };
+
+      const { error } = await supabase.from('form_answers').insert([submitData]);
+      if (error) {
+        showToast('提交失败，请重试');
+        return;
+      }
+
+      showToast('评价提交成功，感谢参与！');
+      setTimeout(() => {
+        document.getElementById('formModal').classList.remove('show');
+      }, 1500);
+    }
+
+    // 提示弹窗
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
+    // 点击弹窗外部关闭
+    document.getElementById('formModal').addEventListener('click', e => {
+      if (e.target.id === 'formModal') {
+        if (confirm('确定要退出评价吗？已填写内容不会保存')) {
+          document.getElementById('formModal').classList.remove('show');
+        }
+      }
+    });
+
+    init();
+  </script>
+</body>
+</html>
