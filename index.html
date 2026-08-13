@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>视频审阅反馈系统</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body { font-family: system-ui, -apple-system, sans-serif; background: #f5f5f7; color: #333; }
@@ -534,7 +535,24 @@
         console.error('未找到视频地址，请检查 form_config 的 video_url');
         return;
       }
-      video.src = videoUrl;
+      // 支持 MP4 和七牛 HLS(m3u8)
+      if (videoUrl.toLowerCase().includes('.m3u8')) {
+        if (window.Hls && Hls.isSupported()) {
+          const hls = new Hls();
+          hls.loadSource(videoUrl);
+          hls.attachMedia(video);
+          hls.on(Hls.Events.ERROR, function(event, data) {
+            console.error('HLS播放错误：', data);
+          });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = videoUrl;
+        } else {
+          console.error('当前浏览器不支持m3u8播放');
+        }
+      } else {
+        video.src = videoUrl;
+      }
+
       video.load();
       video.addEventListener('loadedmetadata', renderAllMarkers);
     }
@@ -657,7 +675,7 @@
       document.getElementById('q4Other').placeholder = config.q4_other_placeholder || '';
 
       // 渲染第1题星级
-      const dims = [config.q1_dim1, config.q1_dim2, config.q1_dim3, config.q1_dim4, config.q1_dim5].map((v,i)=>v || ('评价维度'+(i+1)));
+      const dims = [config.q1_dim1, config.q1_dim2, config.q1_dim3, config.q1_dim4, config.q1_dim5];
       document.getElementById('starGroups').innerHTML = dims.map((dim, idx) => `
         <div class="star-group">
           <div class="star-label">${dim}</div>
@@ -669,10 +687,10 @@
 
       // 渲染第3题选项
       document.getElementById('q3Options').innerHTML = `
-        <div class="option-item" data-value="title1" onclick="selectQ3(this)">${config.title1 || ''}</div>
-        <div class="option-item" data-value="title2" onclick="selectQ3(this)">${config.title2 || ''}</div>
-        <div class="option-item" data-value="both" onclick="selectQ3(this)">${config.q3_opt3 || ''}</div>
-        <div class="option-item" data-value="none" onclick="selectQ3(this)">${config.q3_opt4 || ''}</div>
+        <div class="option-item" data-value="title1" onclick="selectQ3(this)">${config.title1}</div>
+        <div class="option-item" data-value="title2" onclick="selectQ3(this)">${config.title2}</div>
+        <div class="option-item" data-value="both" onclick="selectQ3(this)">${config.q3_opt3}</div>
+        <div class="option-item" data-value="none" onclick="selectQ3(this)">${config.q3_opt4}</div>
       `;
 
       // 渲染第4题封面
@@ -856,27 +874,6 @@
       return true;
     }
 
-
-    // 第1题兼容旧HTML点击
-    function selectQ1(el) {
-      if (typeof el === 'number') {
-        formAnswers.q1[0] = el;
-      }
-    }
-
-    // 第2题兼容旧HTML点击
-    function selectQ2(el) {
-      if (el && el.dataset) {
-        formAnswers.q2[el.dataset.dim] = el.dataset.reason;
-        el.classList.toggle('selected');
-      }
-    }
-
-    // 关闭表单
-    function closeForm() {
-      document.getElementById('formModal').classList.remove('show');
-    }
-
     // 提交表单
     async function submitForm() {
       const totalDuration = questionDurations.reduce((a,b) => a+b, 0);
@@ -936,8 +933,6 @@
       window.toggleGuide = toggleGuide;
       window.prevQuestion = prevQuestion;
       window.nextQuestion = nextQuestion;
-      window.setStar = setStar;
-      window.toggleQ2Reason = toggleQ2Reason;
       window.selectQ1 = selectQ1;
       window.selectQ2 = selectQ2;
       window.selectQ3 = selectQ3;
