@@ -493,7 +493,8 @@
     const SUPABASE_ANON_KEY = 'sb_publishable_9O4JqSBGphBwASfl8YKvxA__gQvXizO';
     // =====================================
 
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    window.supabaseClient = window.supabaseClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = window.supabaseClient;
     let feedbackSummary = [];
     let answersData = [];
 
