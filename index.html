@@ -535,47 +535,44 @@
         console.error('未找到视频地址，请检查 form_config 的 video_url');
         return;
       }
-      // 加载视频
-if (videoUrl1.endsWith(".m3u8")) {
+// 当前视频地址
+const url = videoUrl;   // 如果你原变量叫 videoUrl
+
+if (url.endsWith(".m3u8")) {
 
     if (Hls.isSupported()) {
 
         const hls = new Hls();
 
-        hls.loadSource(videoUrl1);
+        hls.loadSource(url);
 
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
             console.log("HLS加载成功");
-            video.play();
         });
 
         hls.on(Hls.Events.ERROR, function(event, data){
             console.error("HLS错误:", data);
         });
 
-    } 
-    else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
 
-        // Safari原生支持
-        video.src = videoUrl1;
+        video.src = url;
 
     }
 
 } else {
 
-    // 普通mp4
-    video.src = videoUrl1;
+    video.src = url;
     video.load();
 
 }
 
-
-video.addEventListener('loadedmetadata', renderAllMarkers);
-      video.addEventListener('loadedmetadata', renderAllMarkers);
-    }
-
+video.addEventListener(
+    'loadedmetadata',
+    renderAllMarkers
+);
     // 初始化反馈
     function initFeedback() {
       likeBtn.addEventListener('click', () => handleFeedback('like'));
