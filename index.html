@@ -502,7 +502,14 @@
         throw new Error('无法读取项目配置：' + error.message);
       }
       config = {};
-      (data || []).forEach(item => { config[item.key] = item.value; });
+      (data || []).forEach(item => {
+        config[item.key] = item.value == null ? '' : String(item.value);
+      });
+
+      // 兼容旧版本字段
+      if (!config.video_url) config.video_url = config.video || config.videoUrl || '';
+      if (!config.form_title) config.form_title = '视频内容评价问卷';
+      if (!config.form_desc) config.form_desc = '感谢您抽出时间参与评价';
       
       document.getElementById('projectName').textContent = config.project_name || '';
       document.getElementById('deadlineText').textContent = config.deadline ? '截止时间：' + config.deadline : '';
@@ -523,7 +530,13 @@
 
     // 初始化视频
     function initVideo() {
-      video.src = config.video_url;
+      const url = (config.video_url || '').trim();
+      if (!url) {
+        console.error('未找到视频地址，请检查 form_config.video_url');
+        return;
+      }
+      video.src = url;
+      video.load();
       video.addEventListener('loadedmetadata', renderAllMarkers);
     }
 
@@ -635,17 +648,17 @@
     function initFormContent() {
       document.getElementById('formTitle').textContent = config.form_title;
       document.getElementById('formDesc').textContent = config.form_desc;
-      document.getElementById('q1Title').textContent = config.q1_title;
-      document.getElementById('q2Title').textContent = config.q2_title;
-      document.getElementById('q3Title').textContent = config.q3_title;
-      document.getElementById('q4Title').textContent = config.q4_title;
-      document.getElementById('q5Title').textContent = config.q5_title;
+      document.getElementById('q1Title').textContent = config.q1_title || '';
+      document.getElementById('q2Title').textContent = config.q2_title || '';
+      document.getElementById('q3Title').textContent = config.q3_title || '';
+      document.getElementById('q4Title').textContent = config.q4_title || '';
+      document.getElementById('q5Title').textContent = config.q5_title || '';
       document.getElementById('q5Input').placeholder = config.q5_placeholder;
       document.getElementById('q3Other').placeholder = config.q3_other_placeholder;
       document.getElementById('q4Other').placeholder = config.q4_other_placeholder;
 
       // 渲染第1题星级
-      const dims = [config.q1_dim1, config.q1_dim2, config.q1_dim3, config.q1_dim4, config.q1_dim5];
+      const dims = [config.q1_dim1, config.q1_dim2, config.q1_dim3, config.q1_dim4, config.q1_dim5].map(v => v || '');
       document.getElementById('starGroups').innerHTML = dims.map((dim, idx) => `
         <div class="star-group">
           <div class="star-label">${dim}</div>
@@ -725,7 +738,8 @@
     // 渲染第2题低分原因
     function renderQ2Content() {
       const dimNames = [config.q1_dim1, config.q1_dim2, config.q1_dim3, config.q1_dim4, config.q1_dim5];
-      const reasons = JSON.parse(config.q2_reasons);
+      let reasons = {};
+       try { reasons = JSON.parse(config.q2_reasons || '{}'); } catch(e) { console.error('q2_reasons格式错误', e); }
       let html = '';
 
       dimNames.forEach((dim, idx) => {
