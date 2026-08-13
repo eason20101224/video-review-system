@@ -443,6 +443,10 @@
   <div class="toast" id="toast"></div>
 
   <script>
+    // 防止 Cloudflare/浏览器重复执行页面脚本导致 const/let 重复声明
+    if (!window.__videoReviewAppLoaded) {
+      window.__videoReviewAppLoaded = true;
+      (function () {
     // ========== 仅修改这两项配置 ==========
     const SUPABASE_URL = 'https://gbosdkzcbqhrfsiqlbdf.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_9O4JqSBGphBwASfl8YKvxA__gQvXizO';
@@ -492,13 +496,18 @@
 
     // 加载配置
     async function loadConfig() {
-      const { data } = await supabase.from('form_config').select('*');
-      data.forEach(item => config[item.key] = item.value);
+      const { data, error } = await supabase.from('form_config').select('*');
+      if (error) {
+        console.error('读取 form_config 失败：', error);
+        throw new Error('无法读取项目配置：' + error.message);
+      }
+      config = {};
+      (data || []).forEach(item => { config[item.key] = item.value; });
       
-      document.getElementById('projectName').textContent = config.project_name;
-      document.getElementById('deadlineText').textContent = '截止时间：' + config.deadline;
-      document.getElementById('guideTitle').textContent = config.guide_title;
-      document.getElementById('guideContent').textContent = config.guide_content;
+      document.getElementById('projectName').textContent = config.project_name || '';
+      document.getElementById('deadlineText').textContent = config.deadline ? '截止时间：' + config.deadline : '';
+      document.getElementById('guideTitle').textContent = config.guide_title || '';
+      document.getElementById('guideContent').textContent = config.guide_content || '';
     }
 
     // 检查项目状态
@@ -588,16 +597,20 @@
         if (feedbackQueue.length === 0) return;
         const batch = [...feedbackQueue];
         feedbackQueue = [];
-        await supabase.from('feedback').insert(batch).catch(() => {
-          // 失败放回队列
+        const { error } = await supabase.from('feedback').insert(batch);
+        if (error) {
+          console.error('反馈上传失败：', error);
           feedbackQueue = [...batch, ...feedbackQueue];
-        });
+        }
       }, 5000);
 
-      // 页面关闭前兜底提交
-      window.addEventListener('beforeunload', () => {
+      // 页面关闭前尽量提交；正常情况下 5 秒批量上传已经完成。
+      window.addEventListener('pagehide', async () => {
         if (feedbackQueue.length > 0) {
-          navigator.sendBeacon(SUPABASE_URL + '/rest/v1/feedback', JSON.stringify(feedbackQueue));
+          const batch = [...feedbackQueue];
+          feedbackQueue = [];
+          const { error } = await supabase.from('feedback').insert(batch);
+          if (error) feedbackQueue = [...batch, ...feedbackQueue];
         }
       });
     }
@@ -880,7 +893,25 @@
       }
     });
 
-    init();
+      // 对外暴露 HTML onclick 使用的函数
+      window.openForm = openForm;
+      window.toggleGuide = toggleGuide;
+      window.prevQuestion = prevQuestion;
+      window.nextQuestion = nextQuestion;
+      window.selectQ1 = selectQ1;
+      window.selectQ2 = selectQ2;
+      window.selectQ3 = selectQ3;
+      window.selectQ4 = selectQ4;
+      window.submitForm = submitForm;
+      window.closeForm = closeForm;
+
+      // 启动应用
+      init().catch(err => {
+        console.error('观众端初始化失败：', err);
+        showToast('页面加载失败，请刷新重试');
+      });
+      })();
+    }
   </script>
 </body>
 </html>

@@ -488,6 +488,8 @@
   </div>
 
   <script>
+  if (!window.__adminAppLoaded) {
+    window.__adminAppLoaded = true;
   (function () {
     // ========== 仅修改这两项配置 ==========
     const SUPABASE_URL = 'https://gbosdkzcbqhrfsiqlbdf.supabase.co';
@@ -565,9 +567,14 @@
 
     // 加载所有配置
     async function loadAllConfig() {
-      const { data } = await supabase.from('form_config').select('*');
+      const { data, error } = await supabase.from('form_config').select('*');
+      if (error) {
+        console.error('读取 form_config 失败：', error);
+        alert('读取项目配置失败：' + error.message);
+        return;
+      }
       const config = {};
-      data.forEach(item => config[item.key] = item.value);
+      (data || []).forEach(item => config[item.key] = item.value);
 
       // 填充项目配置
       document.getElementById('cfg_project_name').value = config.project_name || '';
@@ -619,7 +626,15 @@
       const isOn = btn.textContent === '已开启';
       const newValue = isOn ? 'false' : 'true';
 
-      await supabase.from('form_config').update({ value: newValue }).eq('key', 'feedback_enabled');
+      const { error } = await supabase.from('form_config').upsert(
+        { key: 'feedback_enabled', value: newValue },
+        { onConflict: 'key' }
+      );
+      if (error) {
+        console.error('保存反馈开关失败：', error);
+        alert('保存失败：' + error.message);
+        return;
+      }
       
       if (newValue === 'true') {
         btn.className = 'switch-btn on';
@@ -643,8 +658,14 @@
         { key: 'cover2', value: document.getElementById('cfg_cover2').value }
       ];
 
-      for (const item of updates) {
-        await supabase.from('form_config').update({ value: item.value }).eq('key', item.key);
+      const { error } = await supabase.from('form_config').upsert(
+        updates,
+        { onConflict: 'key' }
+      );
+      if (error) {
+        console.error('项目配置保存失败：', error);
+        alert('项目配置保存失败：' + error.message);
+        return;
       }
       alert('项目配置保存成功，观众端实时生效');
     }
@@ -676,8 +697,14 @@
         { key: 'q5_placeholder', value: document.getElementById('cfg_q5_placeholder').value }
       ];
 
-      for (const item of updates) {
-        await supabase.from('form_config').update({ value: item.value }).eq('key', item.key);
+      const { error } = await supabase.from('form_config').upsert(
+        updates,
+        { onConflict: 'key' }
+      );
+      if (error) {
+        console.error('内容配置保存失败：', error);
+        alert('内容配置保存失败：' + error.message);
+        return;
       }
       alert('内容配置保存成功，观众端实时生效');
     }
@@ -686,7 +713,12 @@
     async function changePassword() {
       const newPwd = document.getElementById('newPassword').value.trim();
       if (!newPwd) { alert('请输入新密码'); return; }
-      await supabase.from('admin_config').update({ value: newPwd }).eq('key', 'admin_password');
+      const { error } = await supabase.from('admin_config').update({ value: newPwd }).eq('key', 'admin_password');
+      if (error) {
+        console.error('修改密码失败：', error);
+        alert('修改密码失败：' + error.message);
+        return;
+      }
       alert('密码修改成功');
       document.getElementById('newPassword').value = '';
     }
@@ -904,6 +936,7 @@ async function clearAllBusinessData(){
     window.exportAnswersCSV = exportAnswersCSV;
     window.downloadCSV = downloadCSV;
   })();
+  }
   </script>
 </body>
 </html>
