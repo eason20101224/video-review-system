@@ -337,6 +337,7 @@
       video { max-height: calc(100vh - 80px); }
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
   <!-- 顶部项目栏 -->
@@ -534,8 +535,44 @@
         console.error('未找到视频地址，请检查 form_config 的 video_url');
         return;
       }
-      video.src = videoUrl;
-      video.load();
+      // 加载视频
+if (videoUrl1.endsWith(".m3u8")) {
+
+    if (Hls.isSupported()) {
+
+        const hls = new Hls();
+
+        hls.loadSource(videoUrl1);
+
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, function () {
+            console.log("HLS加载成功");
+            video.play();
+        });
+
+        hls.on(Hls.Events.ERROR, function(event, data){
+            console.error("HLS错误:", data);
+        });
+
+    } 
+    else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+
+        // Safari原生支持
+        video.src = videoUrl1;
+
+    }
+
+} else {
+
+    // 普通mp4
+    video.src = videoUrl1;
+    video.load();
+
+}
+
+
+video.addEventListener('loadedmetadata', renderAllMarkers);
       video.addEventListener('loadedmetadata', renderAllMarkers);
     }
 
