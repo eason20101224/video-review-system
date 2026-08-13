@@ -657,7 +657,7 @@
       document.getElementById('q4Other').placeholder = config.q4_other_placeholder || '';
 
       // 渲染第1题星级
-      const dims = [config.q1_dim1, config.q1_dim2, config.q1_dim3, config.q1_dim4, config.q1_dim5];
+      const dims = [config.q1_dim1, config.q1_dim2, config.q1_dim3, config.q1_dim4, config.q1_dim5].map((v,i)=>v || ('评价维度'+(i+1)));
       document.getElementById('starGroups').innerHTML = dims.map((dim, idx) => `
         <div class="star-group">
           <div class="star-label">${dim}</div>
@@ -669,10 +669,10 @@
 
       // 渲染第3题选项
       document.getElementById('q3Options').innerHTML = `
-        <div class="option-item" data-value="title1" onclick="selectQ3(this)">${config.title1}</div>
-        <div class="option-item" data-value="title2" onclick="selectQ3(this)">${config.title2}</div>
-        <div class="option-item" data-value="both" onclick="selectQ3(this)">${config.q3_opt3}</div>
-        <div class="option-item" data-value="none" onclick="selectQ3(this)">${config.q3_opt4}</div>
+        <div class="option-item" data-value="title1" onclick="selectQ3(this)">${config.title1 || ''}</div>
+        <div class="option-item" data-value="title2" onclick="selectQ3(this)">${config.title2 || ''}</div>
+        <div class="option-item" data-value="both" onclick="selectQ3(this)">${config.q3_opt3 || ''}</div>
+        <div class="option-item" data-value="none" onclick="selectQ3(this)">${config.q3_opt4 || ''}</div>
       `;
 
       // 渲染第4题封面
@@ -854,6 +854,27 @@
           return true;
       }
       return true;
+    }
+
+
+    // 第1题兼容旧HTML点击
+    function selectQ1(el) {
+      if (typeof el === 'number') {
+        formAnswers.q1[0] = el;
+      }
+    }
+
+    // 第2题兼容旧HTML点击
+    function selectQ2(el) {
+      if (el && el.dataset) {
+        formAnswers.q2[el.dataset.dim] = el.dataset.reason;
+        el.classList.toggle('selected');
+      }
+    }
+
+    // 关闭表单
+    function closeForm() {
+      document.getElementById('formModal').classList.remove('show');
     }
 
     // 提交表单
