@@ -212,6 +212,16 @@
     }
     .other-input.show { display: block; }
 
+    /* 第2题其他输入框 */
+    .q2-other-input {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
     /* 封面图片选项 */
     .cover-options {
       display: grid;
@@ -233,7 +243,7 @@
     .cover-option img {
       width: 100%;
       height: 90px;
-      object-fit: cover;
+      object-fit: contain;
       display: block;
     }
     .cover-option .opt-name {
@@ -336,9 +346,179 @@
       }
       video { max-height: calc(100vh - 80px); }
     }
+
+    /* ========== 新增 CSS ========== */
+
+    /* 用户信息弹窗 */
+    #userInfoModal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.65);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    #userInfoBox {
+      width: 90%;
+      max-width: 420px;
+      background: #fff;
+      border-radius: 16px;
+      padding: 25px;
+    }
+    #userInfoBox h3 {
+      margin-bottom: 20px;
+      text-align: center;
+      font-size: 18px;
+    }
+    #userInfoBox button {
+      width: 100%;
+      padding: 12px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin-top: 10px;
+    }
+    .user-info-item {
+      margin-bottom: 15px;
+    }
+    .user-info-item label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .user-info-item input {
+      width: 100%;
+      height: 42px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 0 10px;
+      box-sizing: border-box;
+      font-size: 14px;
+    }
+    .gender-box {
+      display: flex;
+      gap: 20px;
+    }
+    .gender-box label {
+      font-weight: normal;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .gender-box input {
+      width: auto;
+      height: auto;
+    }
+
+    /* 反馈操作按钮 */
+    .feedback-actions {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 15px;
+    }
+    .feedback-actions button {
+      padding: 10px 14px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .feedback-actions button:nth-child(1) { background: #22c55e; color: white; }
+    .feedback-actions button:nth-child(2) { background: #ef4444; color: white; }
+    .feedback-actions button:nth-child(3),
+    .feedback-actions button:nth-child(4) { background: #f3f4f6; color: #333; }
+
+    /* 提交按钮 */
+    #submitFeedbackBtn {
+      background: #1677ff;
+      color: white;
+    }
+
+    /* 视频结束提醒 */
+    .evaluate-highlight {
+      animation: evaluateFlash 1s infinite;
+      transform: scale(1.08);
+    }
+    @keyframes evaluateFlash {
+      0% { opacity: 1; }
+      50% { opacity: .45; }
+      100% { opacity: 1; }
+    }
+
+    /* 封面4:3 */
+    .cover-preview {
+      width: 100%;
+      aspect-ratio: 4/3;
+      overflow: hidden;
+      border-radius: 10px;
+      cursor: pointer;
+      background: #f5f5f5;
+    }
+    .cover-preview img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    /* 图片大图 */
+    #imageViewer {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.85);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    }
+    #imageViewer img {
+      max-width: 95%;
+      max-height: 90%;
+    }
   </style>
 </head>
 <body>
+  <!-- 用户信息填写 -->
+  <div id="userInfoModal">
+    <div id="userInfoBox">
+      <h3>请填写基本信息</h3>
+      <div class="user-info-item">
+        <label>姓名</label>
+        <input id="userNameInput" maxlength="20" placeholder="请输入姓名">
+      </div>
+      <div class="user-info-item">
+        <label>性别</label>
+        <div class="gender-box">
+          <label>
+            <input type="radio" name="gender" value="男">
+            男
+          </label>
+          <label>
+            <input type="radio" name="gender" value="女">
+            女
+          </label>
+        </div>
+      </div>
+      <div class="user-info-item">
+        <label>年龄</label>
+        <input id="userAgeInput" type="number" placeholder="10-99">
+      </div>
+      <button onclick="submitUserInfo()">开始审阅</button>
+    </div>
+  </div>
+
+  <!-- 图片查看 -->
+  <div id="imageViewer" onclick="closeImageViewer()">
+    <img id="viewerImage">
+  </div>
+
   <!-- 顶部项目栏 -->
   <div class="top-bar">
     <div class="project-name" id="projectName">加载中...</div>
@@ -374,15 +554,19 @@
 
       <!-- 反馈按钮 -->
       <div class="card">
-        <div class="btn-group">
-          <button class="btn btn-like" id="likeBtn">👍 好看</button>
-          <button class="btn btn-dislike" id="dislikeBtn">👎 不好看</button>
+        <div class="feedback-actions">
+          <button onclick="likeVideo()">👍 好看</button>
+          <button onclick="dislikeVideo()">👎 不好看</button>
+          <button onclick="clearLastFeedback()">清除上一条反馈</button>
+          <button onclick="clearAllFeedback()">清除所有反馈</button>
+          <button id="submitFeedbackBtn" onclick="submitFeedback()">提交反馈</button>
         </div>
+        <div id="feedbackCount" style="text-align:center;margin-top:10px;font-size:13px;color:#666;">当前未提交反馈：0</div>
       </div>
 
       <!-- 评价入口 -->
       <div class="card eval-entry">
-        <button class="btn btn-primary" onclick="openForm()">填写完整评价</button>
+        <button class="btn btn-primary" id="openFormBtn" onclick="openForm()">填写完整评价</button>
       </div>
     </div>
   </div>
@@ -454,8 +638,6 @@
 
     const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const video = document.getElementById('reviewVideo');
-    const likeBtn = document.getElementById('likeBtn');
-    const dislikeBtn = document.getElementById('dislikeBtn');
     const timelineBar = document.getElementById('timelineBar');
 
     let config = {};
@@ -465,8 +647,15 @@
       localStorage.setItem('review_user_id', userId);
     }
 
-    // 反馈队列与防频繁点击
-    let feedbackQueue = [];
+    // 用户信息
+    let userInfo = {
+      name: "",
+      gender: "",
+      age: ""
+    };
+
+    // 反馈暂存队列
+    let pendingFeedback = [];
     let clickTimestamps = [];
     let isCoolingDown = false;
 
@@ -489,9 +678,53 @@
       checkProjectStatus();
       if (config.feedback_enabled === 'true' && !isExpired()) {
         initVideo();
-        initFeedback();
-        startBatchUpload();
       }
+    }
+
+    // 页面加载检查用户信息
+    function checkUserInfo() {
+      const saved = localStorage.getItem("review_user_info");
+      if (saved) {
+        userInfo = JSON.parse(saved);
+        document.getElementById("userInfoModal").style.display = "none";
+      }
+    }
+
+    function submitUserInfo() {
+      const name = document.getElementById("userNameInput").value.trim();
+      const gender = document.querySelector('input[name="gender"]:checked');
+      const age = Number(document.getElementById("userAgeInput").value);
+
+      if (
+        name.length < 2 ||
+        name.length > 20 ||
+        !gender ||
+        !Number.isInteger(age) ||
+        age < 10 ||
+        age > 99
+      ) {
+        showToast("填写内容不正确");
+        return;
+      }
+
+      userInfo = {
+        name: name,
+        gender: gender.value,
+        age: age
+      };
+
+      localStorage.setItem("review_user_info", JSON.stringify(userInfo));
+      document.getElementById("userInfoModal").style.display = "none";
+    }
+
+    // 图片查看功能
+    function openImageViewer(src) {
+      document.getElementById("viewerImage").src = src;
+      document.getElementById("imageViewer").style.display = "flex";
+    }
+
+    function closeImageViewer() {
+      document.getElementById("imageViewer").style.display = "none";
     }
 
     // 加载配置
@@ -537,54 +770,125 @@
       video.src = videoUrl;
       video.load();
       video.addEventListener('loadedmetadata', renderAllMarkers);
+
+      // 视频结束提醒评价
+      video.addEventListener('ended', () => {
+        const btn = document.getElementById("openFormBtn");
+        if (btn) {
+          btn.classList.add("evaluate-highlight");
+          btn.innerHTML = "⭐ 视频完成，请填写评价";
+        }
+        showToast("视频观看完成，请填写评价");
+      });
     }
 
-    // 初始化反馈
-    function initFeedback() {
-      likeBtn.addEventListener('click', () => handleFeedback('like'));
-      dislikeBtn.addEventListener('click', () => handleFeedback('dislike'));
-    }
+    // 反馈暂存机制
+    function addFeedback(type) {
+      if (!video || video.currentTime <= 0) {
+        return;
+      }
 
-    // 处理反馈点击
-    function handleFeedback(type) {
+      // 防频繁点击
       if (isCoolingDown || video.paused) return;
-
       const now = Date.now();
       clickTimestamps.push(now);
-      // 只保留3秒内的点击记录
       clickTimestamps = clickTimestamps.filter(t => now - t < 3000);
-
-      // 防频繁判定：3秒内≥5次
       if (clickTimestamps.length >= 5) {
         triggerCooldown();
         return;
       }
 
-      const currentTime = parseFloat(video.currentTime.toFixed(1));
-      feedbackQueue.push({
-        time: currentTime,
+      pendingFeedback.push({
         type: type,
-        user_id: userId,
-        video_id: 'default'
+        time: Math.floor(video.currentTime),
+        created: Date.now()
       });
 
-      renderMarker(currentTime, type);
+      renderMarker(Math.floor(video.currentTime), type);
+      updateFeedbackCount();
+    }
+
+    function likeVideo() {
+      addFeedback("like");
+    }
+
+    function dislikeVideo() {
+      addFeedback("dislike");
+    }
+
+    function clearLastFeedback() {
+      if (pendingFeedback.length === 0) {
+        showToast("暂无反馈");
+        return;
+      }
+      pendingFeedback.pop();
+      updateFeedbackCount();
+      renderAllMarkersFromPending();
+      showToast("已清除上一条反馈");
+    }
+
+    function clearAllFeedback() {
+      if (!confirm("确认清除所有未提交反馈？")) {
+        return;
+      }
+      pendingFeedback = [];
+      updateFeedbackCount();
+      renderAllMarkersFromPending();
+      showToast("已清除全部反馈");
+    }
+
+    function updateFeedbackCount() {
+      const el = document.getElementById("feedbackCount");
+      if (el) {
+        el.innerText = "当前未提交反馈：" + pendingFeedback.length;
+      }
+    }
+
+    function renderAllMarkersFromPending() {
+      timelineBar.innerHTML = '';
+      pendingFeedback.forEach(item => renderMarker(item.time, item.type));
     }
 
     // 触发冷却
     function triggerCooldown() {
       isCoolingDown = true;
       video.pause();
-      likeBtn.disabled = true;
-      dislikeBtn.disabled = true;
       showToast('请认真评价，不要频繁点击');
 
       setTimeout(() => {
         isCoolingDown = false;
-        likeBtn.disabled = false;
-        dislikeBtn.disabled = false;
         clickTimestamps = [];
       }, 3000);
+    }
+
+    // 提交反馈
+    async function submitFeedback() {
+      if (pendingFeedback.length === 0) {
+        showToast("暂无反馈");
+        return;
+      }
+
+      if (!confirm("确认提交当前反馈？")) {
+        return;
+      }
+
+      const rows = pendingFeedback.map(item => ({
+        user_id: userId,
+        video_id: "default",
+        type: item.type,
+        time: item.time
+      }));
+
+      const { error } = await supabase.from("feedback").insert(rows);
+
+      if (error) {
+        showToast("提交失败");
+        return;
+      }
+
+      pendingFeedback = [];
+      updateFeedbackCount();
+      showToast("反馈提交成功");
     }
 
     // 渲染单个标记
@@ -600,31 +904,7 @@
     // 渲染所有本地标记
     function renderAllMarkers() {
       timelineBar.innerHTML = '';
-      feedbackQueue.forEach(item => renderMarker(item.time, item.type));
-    }
-
-    // 批量上传，每5秒一次
-    function startBatchUpload() {
-      setInterval(async () => {
-        if (feedbackQueue.length === 0) return;
-        const batch = [...feedbackQueue];
-        feedbackQueue = [];
-        const { error } = await supabase.from('feedback').insert(batch);
-        if (error) {
-          console.error('反馈上传失败：', error);
-          feedbackQueue = [...batch, ...feedbackQueue];
-        }
-      }, 5000);
-
-      // 页面关闭前尽量提交；正常情况下 5 秒批量上传已经完成。
-      window.addEventListener('pagehide', async () => {
-        if (feedbackQueue.length > 0) {
-          const batch = [...feedbackQueue];
-          feedbackQueue = [];
-          const { error } = await supabase.from('feedback').insert(batch);
-          if (error) feedbackQueue = [...batch, ...feedbackQueue];
-        }
-      });
+      pendingFeedback.forEach(item => renderMarker(item.time, item.type));
     }
 
     // 使用说明折叠
@@ -675,14 +955,18 @@
         <div class="option-item" data-value="none" onclick="selectQ3(this)">${config.q3_opt4 || ''}</div>
       `;
 
-      // 渲染第4题封面
+      // 渲染第4题封面（4:3完整显示，点击放大）
       document.getElementById('q4Options').innerHTML = `
         <div class="cover-option" data-value="cover1" onclick="selectQ4(this)">
-          <img src="${config.cover1}" alt="封面1">
+          <div class="cover-preview" onclick="event.stopPropagation(); openImageViewer(this.querySelector('img').src)">
+            <img src="${config.cover1}" alt="封面1">
+          </div>
           <div class="opt-name">封面A</div>
         </div>
         <div class="cover-option" data-value="cover2" onclick="selectQ4(this)">
-          <img src="${config.cover2}" alt="封面2">
+          <div class="cover-preview" onclick="event.stopPropagation(); openImageViewer(this.querySelector('img').src)">
+            <img src="${config.cover2}" alt="封面2">
+          </div>
           <div class="opt-name">封面B</div>
         </div>
       `;
@@ -734,48 +1018,113 @@
       }
     }
 
-    // 渲染第2题低分原因
+    // 渲染第2题低分原因（新版：增加整体评价+其他输入）
     function renderQ2Content() {
-      const dimNames = [config.q1_dim1, config.q1_dim2, config.q1_dim3, config.q1_dim4, config.q1_dim5];
+      const dimNames = [
+        config.q1_dim1,
+        config.q1_dim2,
+        config.q1_dim3,
+        config.q1_dim4,
+        config.q1_dim5
+      ];
+
       let reasons = {};
       try {
-        reasons = JSON.parse(config.q2_reasons || '{}');
+        reasons = JSON.parse(config.q2_reasons || "{}");
       } catch (e) {
-        console.warn('q2_reasons JSON 格式错误，已使用空配置', e);
+        reasons = {};
       }
-      let html = '';
 
-      dimNames.forEach((dim, idx) => {
-        if (formAnswers.q1[idx] <= 3 && formAnswers.q1[idx] > 0) {
-          const dimReasons = reasons[dim] || [];
-          html += `<div class="star-label" style="margin-top:12px;">${dim}</div>`;
-          dimReasons.forEach(reason => {
+      let html = "";
+
+      // 增加整体评价判断：如果整体评分低，显示整体原因
+      let totalScore = formAnswers.q1.reduce((a, b) => a + b, 0);
+      let avg = totalScore / formAnswers.q1.length;
+
+      if (avg <= 3) {
+        html += `
+          <div class="star-label">整体评价不满意原因</div>
+          <div class="option-item multi" data-dim="整体评价" data-reason="整体效果不佳" onclick="toggleQ2Reason(this)">
+            整体效果不佳
+          </div>
+          <div class="option-item multi" data-dim="整体评价" data-reason="内容吸引力不足" onclick="toggleQ2Reason(this)">
+            内容吸引力不足
+          </div>
+          <div class="option-item multi" data-dim="整体评价" data-reason="其他" onclick="toggleQ2Reason(this)">
+            其他
+          </div>
+          <input class="q2-other-input" id="q2OverallOther" placeholder="请输入其他原因" style="display:none;">
+        `;
+      }
+
+      // 原五个维度低分逻辑
+      dimNames.forEach((dim, index) => {
+        if (formAnswers.q1[index] <= 3 && formAnswers.q1[index] > 0) {
+          html += `<div class="star-label">${dim}</div>`;
+
+          const arr = reasons[dim] || [];
+          arr.forEach(reason => {
             html += `
               <div class="option-item multi" data-dim="${dim}" data-reason="${reason}" onclick="toggleQ2Reason(this)">
                 ${reason}
               </div>
             `;
           });
+
+          html += `
+            <div class="option-item multi" data-dim="${dim}" data-reason="其他" onclick="toggleQ2Reason(this)">
+              其他
+            </div>
+            <input class="q2-other-input" id="other_${index}" placeholder="请输入其他原因" style="display:none;">
+          `;
         }
       });
 
       if (!html) {
-        html = '<p style="color:#666; font-size:14px;">暂无低分维度，可直接下一题</p>';
+        html = `<p style="color:#666;font-size:14px;">暂无低分原因</p>`;
       }
-      document.getElementById('q2Content').innerHTML = html;
+
+      document.getElementById("q2Content").innerHTML = html;
     }
 
-    // 第2题多选切换
+    // 第2题多选切换（新版：增加其他输入框显示逻辑）
     function toggleQ2Reason(el) {
-      el.classList.toggle('selected');
+      el.classList.toggle("selected");
+
       const dim = el.dataset.dim;
       const reason = el.dataset.reason;
-      if (!formAnswers.q2[dim]) formAnswers.q2[dim] = [];
-      
-      if (el.classList.contains('selected')) {
-        if (!formAnswers.q2[dim].includes(reason)) formAnswers.q2[dim].push(reason);
+
+      if (!formAnswers.q2[dim]) {
+        formAnswers.q2[dim] = [];
+      }
+
+      if (el.classList.contains("selected")) {
+        if (!formAnswers.q2[dim].includes(reason)) {
+          formAnswers.q2[dim].push(reason);
+        }
       } else {
         formAnswers.q2[dim] = formAnswers.q2[dim].filter(r => r !== reason);
+      }
+
+      // 其他输入框显示
+      if (reason === "其他") {
+        let input;
+        if (dim === "整体评价") {
+          input = document.getElementById("q2OverallOther");
+        } else {
+          let index = [
+            config.q1_dim1,
+            config.q1_dim2,
+            config.q1_dim3,
+            config.q1_dim4,
+            config.q1_dim5
+          ].indexOf(dim);
+          input = document.getElementById("other_" + index);
+        }
+
+        if (input) {
+          input.style.display = el.classList.contains("selected") ? "block" : "none";
+        }
       }
     }
 
@@ -813,12 +1162,24 @@
       }
     }
 
-    // 校验题目
+    // 校验题目（增加第2题必答判断）
     function validateQuestion(num) {
       switch(num) {
         case 1:
           if (formAnswers.q1.some(s => s === 0)) {
             showToast('请为所有维度打分');
+            return false;
+          }
+          return true;
+        case 2:
+          let hasReason = false;
+          Object.keys(formAnswers.q2).forEach(k => {
+            if (formAnswers.q2[k] && formAnswers.q2[k].length > 0) {
+              hasReason = true;
+            }
+          });
+          if (!hasReason) {
+            showToast("请选择不满意原因");
             return false;
           }
           return true;
@@ -856,7 +1217,6 @@
       return true;
     }
 
-
     // 第1题兼容旧HTML点击
     function selectQ1(el) {
       if (typeof el === 'number') {
@@ -877,11 +1237,14 @@
       document.getElementById('formModal').classList.remove('show');
     }
 
-    // 提交表单
+    // 提交表单（增加用户信息）
     async function submitForm() {
       const totalDuration = questionDurations.reduce((a,b) => a+b, 0);
       const submitData = {
         user_id: userId,
+        user_name: userInfo.name,
+        user_gender: userInfo.gender,
+        user_age: userInfo.age,
         video_id: 'default',
         total_duration: totalDuration,
         q1_score1: formAnswers.q1[0],
@@ -944,8 +1307,17 @@
       window.selectQ4 = selectQ4;
       window.submitForm = submitForm;
       window.closeForm = closeForm;
+      window.submitUserInfo = submitUserInfo;
+      window.openImageViewer = openImageViewer;
+      window.closeImageViewer = closeImageViewer;
+      window.likeVideo = likeVideo;
+      window.dislikeVideo = dislikeVideo;
+      window.clearLastFeedback = clearLastFeedback;
+      window.clearAllFeedback = clearAllFeedback;
+      window.submitFeedback = submitFeedback;
 
       // 启动应用
+      checkUserInfo();
       init().catch(err => {
         console.error('观众端初始化失败：', err);
         showToast('页面加载失败，请刷新重试');

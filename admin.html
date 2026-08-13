@@ -38,6 +38,17 @@
       cursor: pointer;
       font-size: 16px;
     }
+    .remember-box {
+      margin-bottom: 15px;
+      font-size: 14px;
+      color: #555;
+    }
+    .remember-box label {
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
 
     /* 后台面板 */
     .admin-panel { display: none; }
@@ -212,6 +223,12 @@
     <div class="login-box" id="loginBox">
       <h2>管理后台登录</h2>
       <input type="password" id="passwordInput" placeholder="请输入管理员密码">
+      <div class="remember-box">
+        <label>
+          <input type="checkbox" id="rememberPassword">
+          记住密码
+        </label>
+      </div>
       <button class="login-btn" onclick="login()">登录</button>
     </div>
 
@@ -246,6 +263,7 @@
             <label>反馈状态</label>
             <button class="switch-btn on" id="feedbackSwitch" onclick="toggleFeedback()">已开启</button>
           </div>
+          <button class="btn btn-primary" onclick="saveBaseConfig()">保存基础信息配置</button>
         </div>
 
         <div class="section">
@@ -407,11 +425,12 @@
             <div class="label">最难看点</div>
             <div class="value" id="worstPoint">-</div>
           </div>
-<div class="section">
-  <h3>数据重置操作</h3>
-  <p style="color:#999;font-size:13px;margin-bottom:12px;">⚠️ 危险操作：会删除所有用户反馈、所有答卷记录；不会删除表单配置和管理员密码，操作不可恢复，建议先导出CSV备份！</p>
-  <button class="btn btn-red" onclick="clearAllBusinessData()">清空全部反馈+答卷数据</button>
-</div>
+        </div>
+
+        <div class="section">
+          <h3>数据重置操作</h3>
+          <p style="color:#999;font-size:13px;margin-bottom:12px;">⚠️ 危险操作：会删除所有用户反馈、所有答卷记录；不会删除表单配置和管理员密码，操作不可恢复，建议先导出CSV备份！</p>
+          <button class="btn btn-red" onclick="clearAllBusinessData()">清空全部反馈+答卷数据</button>
         </div>
 
         <div class="section">
@@ -471,6 +490,9 @@
               <thead>
                 <tr>
                   <th>提交时间</th>
+                  <th>姓名</th>
+                  <th>性别</th>
+                  <th>年龄</th>
                   <th>建议内容</th>
                 </tr>
               </thead>
@@ -502,6 +524,16 @@
     const supabase = window.__adminSupabaseClient;
     let feedbackSummary = [];
     let answersData = [];
+    let currentProjectName = '视频审阅';
+
+    // 记住密码 - 加载
+    function loadRememberPassword() {
+      const saved = localStorage.getItem("admin_password");
+      if (saved) {
+        document.getElementById("passwordInput").value = saved;
+        document.getElementById("rememberPassword").checked = true;
+      }
+    }
 
     // 登录
     window.login = async function login() {
@@ -514,7 +546,7 @@
 
       try {
         // 不使用 .single()：PostgREST 在没有记录或存在重复记录时会返回 406，
-        // 导致原来的代码直接进入“密码错误”。限制只取一条并使用 maybeSingle()。
+        // 导致原来的代码直接进入"密码错误"。限制只取一条并使用 maybeSingle()。
         const { data, error } = await supabase
           .from('admin_config')
           .select('value')
@@ -537,6 +569,14 @@
         const savedPwd = String(data.value ?? '').trim();
 
         if (savedPwd === pwd) {
+          // 记住密码
+          const remember = document.getElementById("rememberPassword").checked;
+          if (remember) {
+            localStorage.setItem("admin_password", pwd);
+          } else {
+            localStorage.removeItem("admin_password");
+          }
+
           document.getElementById('loginBox').style.display = 'none';
           document.getElementById('adminPanel').style.display = 'block';
           loadAllConfig();
@@ -575,6 +615,9 @@
       }
       const config = {};
       (data || []).forEach(item => config[item.key] = item.value);
+
+      // 保存项目名称用于导出文件名
+      currentProjectName = config.project_name || '视频审阅';
 
       // 填充项目配置
       document.getElementById('cfg_project_name').value = config.project_name || '';
@@ -646,6 +689,29 @@
       alert('保存成功');
     }
 
+    // 保存基础信息配置（新增）
+    async function saveBaseConfig() {
+      const deadlineVal = document.getElementById('cfg_deadline').value;
+      const updates = [
+        { key: 'project_name', value: document.getElementById('cfg_project_name').value },
+        { key: 'deadline', value: deadlineVal ? deadlineVal.replace('T', ' ') + ':00' : '' }
+      ];
+
+      const { error } = await supabase.from('form_config').upsert(
+        updates,
+        { onConflict: 'key' }
+      );
+      if (error) {
+        console.error('基础信息保存失败：', error);
+        alert('保存失败：' + error.message);
+        return;
+      }
+
+      // 更新本地项目名称
+      currentProjectName = document.getElementById('cfg_project_name').value || '视频审阅';
+      alert('基础信息保存成功');
+    }
+
     // 保存项目配置
     async function saveProjectConfig() {
       const updates = [
@@ -667,6 +733,7 @@
         alert('项目配置保存失败：' + error.message);
         return;
       }
+      currentProjectName = document.getElementById('cfg_project_name').value || '视频审阅';
       alert('项目配置保存成功，观众端实时生效');
     }
 
@@ -723,7 +790,17 @@
       document.getElementById('newPassword').value = '';
     }
 
-    // 加载反馈数据
+    // 反馈时间分组（60秒内按秒，超过60秒按5秒区间）
+    function getFeedbackTimeGroup(time, duration) {
+      if (duration <= 60) {
+        return Math.floor(time) + "秒";
+      }
+      const start = Math.floor(time / 5) * 5;
+      const end = start + 5;
+      return start + "-" + end + "秒";
+    }
+
+    // 加载反馈数据（改为5秒区间统计）
     async function loadFeedbackData() {
       const { data } = await supabase
         .from('feedback')
@@ -732,34 +809,42 @@
       
       if (!data || data.length === 0) return;
 
-      // 按秒统计
+      // 计算视频最大时长作为分组依据
       const maxSecond = Math.max(...data.map(i => Math.floor(i.time)));
+      const videoDuration = maxSecond;
+
+      // 按区间统计
       const likeMap = {}, dislikeMap = {};
-      
-      for (let i = 0; i <= maxSecond; i++) {
-        likeMap[i] = 0;
-        dislikeMap[i] = 0;
-      }
-      
+      const orderSet = new Set();
+
       data.forEach(item => {
-        const s = Math.floor(item.time);
-        item.type === 'like' ? likeMap[s]++ : dislikeMap[s]++;
+        const sec = getFeedbackTimeGroup(item.time, videoDuration);
+        if (!likeMap[sec]) { likeMap[sec] = 0; dislikeMap[sec] = 0; }
+        item.type === 'like' ? likeMap[sec]++ : dislikeMap[sec]++;
+        orderSet.add(sec);
+      });
+
+      // 按时间顺序排序
+      const sortedKeys = Array.from(orderSet).sort((a, b) => {
+        const aStart = parseInt(a.split('-')[0]);
+        const bStart = parseInt(b.split('-')[0]);
+        return aStart - bStart;
       });
 
       feedbackSummary = [];
-      let maxLike = 0, maxLikeSec = 0;
-      let maxDislike = 0, maxDislikeSec = 0;
+      let maxLike = 0, maxLikeKey = '';
+      let maxDislike = 0, maxDislikeKey = '';
 
-      for (let i = 0; i <= maxSecond; i++) {
-        feedbackSummary.push({ second: i, like: likeMap[i], dislike: dislikeMap[i] });
-        if (likeMap[i] > maxLike) { maxLike = likeMap[i]; maxLikeSec = i; }
-        if (dislikeMap[i] > maxDislike) { maxDislike = dislikeMap[i]; maxDislikeSec = i; }
-      }
+      sortedKeys.forEach(key => {
+        feedbackSummary.push({ second: key, like: likeMap[key], dislike: dislikeMap[key] });
+        if (likeMap[key] > maxLike) { maxLike = likeMap[key]; maxLikeKey = key; }
+        if (dislikeMap[key] > maxDislike) { maxDislike = dislikeMap[key]; maxDislikeKey = key; }
+      });
 
       // 更新概览
       document.getElementById('totalCount').textContent = data.length;
-      document.getElementById('bestPoint').textContent = `第${maxLikeSec}秒 (${maxLike}票)`;
-      document.getElementById('worstPoint').textContent = `第${maxDislikeSec}秒 (${maxDislike}票)`;
+      document.getElementById('bestPoint').textContent = maxLikeKey ? `${maxLikeKey} (${maxLike}票)` : '-';
+      document.getElementById('worstPoint').textContent = maxDislikeKey ? `${maxDislikeKey} (${maxDislike}票)` : '-';
 
       // 渲染表格
       renderFeedbackTable();
@@ -769,20 +854,20 @@
       const tbody = document.getElementById('feedbackTable');
       tbody.innerHTML = feedbackSummary.map(item => `
         <tr>
-          <td>${item.second}s</td>
+          <td>${item.second}</td>
           <td>${item.like}</td>
           <td>${item.dislike}</td>
         </tr>
       `).join('');
     }
 
-    // 导出反馈CSV
+    // 导出反馈CSV（文件名带项目名称）
     function exportFeedbackCSV() {
       let csv = '视频秒数,好看人数,不好看人数\n';
       feedbackSummary.forEach(item => {
         csv += `${item.second},${item.like},${item.dislike}\n`;
       });
-      downloadCSV(csv, '视频反馈数据.csv');
+      downloadCSV(csv, `${currentProjectName}_反馈数据.csv`);
     }
 
     // 加载评价数据
@@ -836,22 +921,31 @@
       document.getElementById('coverPollStats').innerHTML = Object.entries(coverCount)
         .map(([k,v]) => `<div class="poll-item"><span>${k}</span><span>${v}票</span></div>`).join('');
 
-      // 建议汇总
+      // 建议汇总（增加用户信息）
       const suggestionHtml = data
         .filter(item => item.q5_suggestion)
-        .map(item => `<tr><td>${new Date(item.created_at).toLocaleString()}</td><td>${item.q5_suggestion}</td></tr>`)
+        .map(item => `<tr>
+          <td>${new Date(item.created_at).toLocaleString()}</td>
+          <td>${item.user_name || ''}</td>
+          <td>${item.user_gender || ''}</td>
+          <td>${item.user_age || ''}</td>
+          <td>${item.q5_suggestion}</td>
+        </tr>`)
         .join('');
       document.getElementById('suggestionTable').innerHTML = suggestionHtml;
     }
 
-    // 导出评价CSV
+    // 导出评价CSV（增加用户信息字段，文件名带项目名称）
     function exportAnswersCSV() {
-      const headers = '提交时间,用户ID,总作答时长,整体评分,画面评分,音效评分,搞笑评分,节奏评分,低分原因,标题选择,标题自定义,封面选择,封面自定义,总体建议,第1题时长,第2题时长,第3题时长,第4题时长,第5题时长\n';
+      const headers = '提交时间,用户ID,姓名,性别,年龄,总作答时长,整体评分,画面评分,音效评分,搞笑评分,节奏评分,低分原因,标题选择,标题自定义,封面选择,封面自定义,总体建议,第1题时长,第2题时长,第3题时长,第4题时长,第5题时长\n';
       let csv = headers;
       answersData.forEach(item => {
         csv += [
           new Date(item.created_at).toLocaleString(),
           item.user_id,
+          item.user_name || '',
+          item.user_gender || '',
+          item.user_age || '',
           item.total_duration,
           item.q1_score1,
           item.q1_score2,
@@ -871,7 +965,7 @@
           item.q5_duration
         ].join(',') + '\n';
       });
-      downloadCSV(csv, '视频评价完整数据.csv');
+      downloadCSV(csv, `${currentProjectName}_评价数据.csv`);
     }
 
     // 通用下载CSV
@@ -889,45 +983,47 @@
     document.getElementById('passwordInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') login();
     });
-// 危险操作：清空全部业务数据（保留配置与管理员密码）
-async function clearAllBusinessData(){
-  const tip1 = "⚠️警告：该操作会永久删除：全部秒级反馈数据 + 全部用户答卷记录\n配置、管理员密码不会被删除。\n建议先导出CSV做好备份！\n确定继续吗？";
-  if(!confirm(tip1)) return;
 
-  const tip2 = "再次确认！删除后数据无法找回，确定清空？";
-  if(!confirm(tip2)) return;
+    // 危险操作：清空全部业务数据（保留配置与管理员密码）
+    async function clearAllBusinessData(){
+      const tip1 = "⚠️警告：该操作会永久删除：全部秒级反馈数据 + 全部用户答卷记录\n配置、管理员密码不会被删除。\n建议先导出CSV做好备份！\n确定继续吗？";
+      if(!confirm(tip1)) return;
 
-  try{
-    // 删除feedback全部记录
-    const {error:err1} = await supabase
-      .from('feedback')
-      .delete()
-      .neq('id',0); // 条件恒真，删除全部
+      const tip2 = "再次确认！删除后数据无法找回，确定清空？";
+      if(!confirm(tip2)) return;
 
-    // 删除form_answers全部记录
-    const {error:err2} = await supabase
-      .from('form_answers')
-      .delete()
-      .neq('id',0);
+      try{
+        // 删除feedback全部记录
+        const {error:err1} = await supabase
+          .from('feedback')
+          .delete()
+          .neq('id',0); // 条件恒真，删除全部
 
-    if(err1 || err2){
-      alert("清空失败！请检查数据库表RLS权限是否允许删除");
-      console.error(err1,err2);
-      return;
+        // 删除form_answers全部记录
+        const {error:err2} = await supabase
+          .from('form_answers')
+          .delete()
+          .neq('id',0);
+
+        if(err1 || err2){
+          alert("清空失败！请检查数据库表RLS权限是否允许删除");
+          console.error(err1,err2);
+          return;
+        }
+
+        alert("✅全部业务数据已经清空！页面即将刷新");
+        // 重新加载后台数据
+        await loadFeedbackData();
+        await loadAnswersData();
+      }catch(e){
+        alert("执行异常："+e.message);
+      }
     }
-
-    alert("✅全部业务数据已经清空！页面即将刷新");
-    // 重新加载后台数据
-    await loadFeedbackData();
-    await loadAnswersData();
-  }catch(e){
-    alert("执行异常："+e.message);
-  }
-}
 
     // 兼容 HTML onclick 调用：确保所有按钮事件函数挂载到 window
     window.switchTab = switchTab;
     window.toggleFeedback = toggleFeedback;
+    window.saveBaseConfig = saveBaseConfig;
     window.saveProjectConfig = saveProjectConfig;
     window.saveContentConfig = saveContentConfig;
     window.changePassword = changePassword;
@@ -935,6 +1031,9 @@ async function clearAllBusinessData(){
     window.exportFeedbackCSV = exportFeedbackCSV;
     window.exportAnswersCSV = exportAnswersCSV;
     window.downloadCSV = downloadCSV;
+
+    // 页面初始化：加载记住的密码
+    loadRememberPassword();
   })();
   }
   </script>
