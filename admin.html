@@ -245,6 +245,7 @@
         <button class="tab" onclick="switchTab(2)">内容配置</button>
         <button class="tab" onclick="switchTab(3)">反馈数据</button>
         <button class="tab" onclick="switchTab(4)">评价数据</button>
+        <button class="tab" onclick="switchTab(5)">邀请码管理</button>
       </div>
 
       <!-- 标签1：项目配置 -->
@@ -490,9 +491,7 @@
               <thead>
                 <tr>
                   <th>提交时间</th>
-                  <th>姓名</th>
-                  <th>性别</th>
-                  <th>年龄</th>
+                  <th>邀请码</th>
                   <th>建议内容</th>
                 </tr>
               </thead>
@@ -504,6 +503,71 @@
         <div class="section">
           <h3>数据导出</h3>
           <button class="btn btn-green" onclick="exportAnswersCSV()">导出全部评价数据 CSV</button>
+        </div>
+      </div>
+
+      <!-- 标签5：邀请码管理 -->
+      <div class="tab-content" id="tab5">
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="label">总邀请码数</div>
+            <div class="value" id="inviteTotal">0</div>
+          </div>
+          <div class="stat-card like">
+            <div class="label">剩余可用次数</div>
+            <div class="value" id="inviteRemaining">0</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">已使用次数</div>
+            <div class="value" id="inviteUsedCount">0</div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h3>批量生成邀请码</h3>
+          <div class="form-row">
+            <label>生成数量</label>
+            <input type="number" id="inviteGenCount" value="10" min="1" max="100">
+          </div>
+          <div class="form-row">
+            <label>每个可使用人数</label>
+            <input type="number" id="inviteGenMaxUses" value="1" min="1" max="999">
+          </div>
+          <button class="btn btn-blue" onclick="generateInviteCodes()">批量生成邀请码</button>
+          <button class="btn btn-green" onclick="exportInviteCodes()" style="margin-left:10px;">导出可用邀请码</button>
+        </div>
+
+        <div class="section">
+          <h3>自定义邀请码</h3>
+          <div class="form-row">
+            <label>邀请码内容</label>
+            <input type="text" id="customInviteCode" placeholder="自定义邀请码，如 CLASS2024" maxlength="16">
+          </div>
+          <div class="form-row">
+            <label>可使用人数</label>
+            <input type="number" id="customInviteMaxUses" value="1" min="1" max="999">
+          </div>
+          <button class="btn btn-blue" onclick="createCustomInviteCode()">创建自定义邀请码</button>
+        </div>
+
+        <div class="section">
+          <h3>邀请码列表</h3>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>邀请码</th>
+                  <th>使用进度</th>
+                  <th>状态</th>
+                  <th>最后使用者</th>
+                  <th>最后使用时间</th>
+                  <th>生成时间</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="inviteCodeTable"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -582,6 +646,7 @@
           loadAllConfig();
           loadFeedbackData();
           loadAnswersData();
+          loadInviteCodes();
         } else {
           alert('密码错误');
         }
@@ -921,14 +986,12 @@
       document.getElementById('coverPollStats').innerHTML = Object.entries(coverCount)
         .map(([k,v]) => `<div class="poll-item"><span>${k}</span><span>${v}票</span></div>`).join('');
 
-      // 建议汇总（增加用户信息）
+      // 建议汇总（邀请码）
       const suggestionHtml = data
         .filter(item => item.q5_suggestion)
         .map(item => `<tr>
           <td>${new Date(item.created_at).toLocaleString()}</td>
-          <td>${item.user_name || ''}</td>
-          <td>${item.user_gender || ''}</td>
-          <td>${item.user_age || ''}</td>
+          <td>${item.invite_code || '-'}</td>
           <td>${item.q5_suggestion}</td>
         </tr>`)
         .join('');
@@ -937,15 +1000,13 @@
 
     // 导出评价CSV（增加用户信息字段，文件名带项目名称）
     function exportAnswersCSV() {
-      const headers = '提交时间,用户ID,姓名,性别,年龄,总作答时长,整体评分,画面评分,音效评分,搞笑评分,节奏评分,低分原因,标题选择,标题自定义,封面选择,封面自定义,总体建议,第1题时长,第2题时长,第3题时长,第4题时长,第5题时长\n';
+      const headers = '提交时间,用户ID,邀请码,总作答时长,整体评分,画面评分,音效评分,搞笑评分,节奏评分,低分原因,标题选择,标题自定义,封面选择,封面自定义,总体建议,第1题时长,第2题时长,第3题时长,第4题时长,第5题时长\n';
       let csv = headers;
       answersData.forEach(item => {
         csv += [
           new Date(item.created_at).toLocaleString(),
           item.user_id,
-          item.user_name || '',
-          item.user_gender || '',
-          item.user_age || '',
+          item.invite_code || '',
           item.total_duration,
           item.q1_score1,
           item.q1_score2,
@@ -979,6 +1040,238 @@
       URL.revokeObjectURL(url);
     }
 
+    // ========== 邀请码管理 ==========
+
+    // 生成随机邀请码（8位大写字母+数字）
+    function generateRandomCode() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      let code = '';
+      for (let i = 0; i < 8; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    // 批量生成邀请码
+    async function generateInviteCodes() {
+      const count = parseInt(document.getElementById('inviteGenCount').value) || 10;
+      const maxUses = parseInt(document.getElementById('inviteGenMaxUses').value) || 1;
+
+      if (count < 1 || count > 100) {
+        alert('生成数量必须在1-100之间');
+        return;
+      }
+      if (maxUses < 1 || maxUses > 999) {
+        alert('可使用人数必须在1-999之间');
+        return;
+      }
+
+      if (!confirm(`确定生成 ${count} 个邀请码？每个可使用 ${maxUses} 人`)) return;
+
+      const codes = [];
+      for (let i = 0; i < count; i++) {
+        codes.push({
+          code: generateRandomCode(),
+          is_used: false,
+          max_uses: maxUses,
+          current_uses: 0
+        });
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('invitation_codes')
+          .insert(codes)
+          .select();
+
+        if (error) {
+          alert('生成失败：' + error.message);
+          return;
+        }
+
+        alert(`成功生成 ${data.length} 个邀请码`);
+        loadInviteCodes();
+      } catch (e) {
+        alert('生成异常：' + e.message);
+      }
+    }
+
+    // 自定义邀请码
+    async function createCustomInviteCode() {
+      const code = document.getElementById('customInviteCode').value.trim().toUpperCase();
+      const maxUses = parseInt(document.getElementById('customInviteMaxUses').value) || 1;
+
+      if (!code || code.length < 3 || code.length > 16) {
+        alert('邀请码长度必须在3-16位之间');
+        return;
+      }
+      if (!/^[A-Z0-9_-]+$/.test(code)) {
+        alert('邀请码只能包含大写字母、数字、下划线和短横线');
+        return;
+      }
+      if (maxUses < 1 || maxUses > 999) {
+        alert('可使用人数必须在1-999之间');
+        return;
+      }
+
+      if (!confirm(`确定创建邀请码 "${code}"？可使用 ${maxUses} 人`)) return;
+
+      try {
+        // 先检查是否已存在
+        const { data: existing } = await supabase
+          .from('invitation_codes')
+          .select('id')
+          .eq('code', code)
+          .limit(1);
+
+        if (existing && existing.length > 0) {
+          alert('该邀请码已存在，请换一个');
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from('invitation_codes')
+          .insert({
+            code: code,
+            is_used: false,
+            max_uses: maxUses,
+            current_uses: 0
+          })
+          .select();
+
+        if (error) {
+          alert('创建失败：' + error.message);
+          return;
+        }
+
+        alert(`成功创建邀请码：${code}`);
+        document.getElementById('customInviteCode').value = '';
+        loadInviteCodes();
+      } catch (e) {
+        alert('创建异常：' + e.message);
+      }
+    }
+
+    // 加载邀请码列表
+    async function loadInviteCodes() {
+      try {
+        const { data, error } = await supabase
+          .from('invitation_codes')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('加载邀请码失败：', error);
+          return;
+        }
+
+        const codes = data || [];
+        const total = codes.length;
+
+        // 统计总使用次数和剩余次数
+        let totalUsed = 0;
+        let totalRemaining = 0;
+        codes.forEach(c => {
+          const max = c.max_uses || 1;
+          const cur = c.current_uses || 0;
+          totalUsed += cur;
+          totalRemaining += Math.max(0, max - cur);
+        });
+
+        document.getElementById('inviteTotal').textContent = total;
+        document.getElementById('inviteUsedCount').textContent = totalUsed;
+        document.getElementById('inviteRemaining').textContent = totalRemaining;
+
+        const tableHtml = codes.map(item => {
+          const max = item.max_uses || 1;
+          const cur = item.current_uses || 0;
+          const remaining = Math.max(0, max - cur);
+          const isFull = item.is_used || cur >= max;
+          const progress = Math.min(100, Math.round((cur / max) * 100));
+
+          return `
+          <tr>
+            <td style="font-family:monospace;font-weight:bold;letter-spacing:1px;">${item.code}</td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;min-width:60px;">
+                  <div style="width:${progress}%;height:100%;background:${isFull ? '#9ca3af' : '#22c55e'};"></div>
+                </div>
+                <span style="font-size:12px;white-space:nowrap;">${cur}/${max}</span>
+              </div>
+            </td>
+            <td>
+              <span style="color:${isFull ? '#999' : '#22c55e'};font-weight:bold;">
+                ${isFull ? '已用完' : `剩余${remaining}次`}
+              </span>
+            </td>
+            <td>${item.used_by || '-'}</td>
+            <td>${item.used_at ? new Date(item.used_at).toLocaleString() : '-'}</td>
+            <td>${item.created_at ? new Date(item.created_at).toLocaleString() : '-'}</td>
+            <td>
+              <button class="btn btn-red" style="padding:4px 10px;font-size:12px;" onclick="deleteInviteCode('${item.id}','${item.code}')">删除</button>
+            </td>
+          </tr>
+        `}).join('');
+
+        document.getElementById('inviteCodeTable').innerHTML = tableHtml || '<tr><td colspan="7" style="text-align:center;color:#999;">暂无邀请码</td></tr>';
+      } catch (e) {
+        console.error('加载邀请码异常：', e);
+      }
+    }
+
+    // 删除邀请码
+    async function deleteInviteCode(id, code) {
+      if (!confirm(`确定删除邀请码 ${code}？`)) return;
+
+      try {
+        const { error } = await supabase
+          .from('invitation_codes')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          alert('删除失败：' + error.message);
+          return;
+        }
+
+        loadInviteCodes();
+      } catch (e) {
+        alert('删除异常：' + e.message);
+      }
+    }
+
+    // 导出可用邀请码
+    function exportInviteCodes() {
+      const rows = document.querySelectorAll('#inviteCodeTable tr');
+      let csv = '邀请码,剩余次数,总次数\n';
+      let count = 0;
+
+      rows.forEach(row => {
+        const cells = row.querySelectorAll('td');
+        if (cells.length >= 3) {
+          const statusText = cells[2].textContent.trim();
+          if (statusText.indexOf('剩余') >= 0) {
+            const code = cells[0].textContent.trim();
+            const progressText = cells[1].textContent.trim(); // 格式: cur/max
+            const parts = progressText.split('/');
+            const cur = parseInt(parts[0]) || 0;
+            const max = parseInt(parts[1]) || 1;
+            const remaining = max - cur;
+            csv += `${code},${remaining},${max}\n`;
+            count++;
+          }
+        }
+      });
+
+      if (count === 0) {
+        alert('没有可用的邀请码');
+        return;
+      }
+
+      downloadCSV(csv, `${currentProjectName}_可用邀请码.csv`);
+    }
+
     // 回车登录
     document.getElementById('passwordInput').addEventListener('keydown', e => {
       if (e.key === 'Enter') login();
@@ -993,25 +1286,46 @@
       if(!confirm(tip2)) return;
 
       try{
-        // 删除feedback全部记录
-        const {error:err1} = await supabase
+        // 先查当前数据量
+        const { count: feedbackBefore } = await supabase
+          .from('feedback')
+          .select('*', { count: 'exact', head: true });
+        const { count: answersBefore } = await supabase
+          .from('form_answers')
+          .select('*', { count: 'exact', head: true });
+
+        // 删除feedback全部记录（兼容UUID和自增ID主键）
+        const { data: del1, error:err1 } = await supabase
           .from('feedback')
           .delete()
-          .neq('id',0); // 条件恒真，删除全部
+          .or('id.not.is.null,id.is.null');
 
         // 删除form_answers全部记录
-        const {error:err2} = await supabase
+        const { data: del2, error:err2 } = await supabase
           .from('form_answers')
           .delete()
-          .neq('id',0);
+          .or('id.not.is.null,id.is.null');
 
         if(err1 || err2){
-          alert("清空失败！请检查数据库表RLS权限是否允许删除");
-          console.error(err1,err2);
+          console.error('删除失败详情：', err1, err2);
+          let msg = "清空失败！\n";
+          if(err1) msg += "feedback表: " + err1.message + "\n";
+          if(err2) msg += "form_answers表: " + err2.message + "\n";
+          msg += "\n常见原因：表启用了RLS行级安全，但没有允许DELETE的策略。\n请在Supabase后台 → Table Editor → 对应表 → RLS Policies 中添加DELETE策略。";
+          alert(msg);
           return;
         }
 
-        alert("✅全部业务数据已经清空！页面即将刷新");
+        const deleted1 = del1 ? del1.length : 0;
+        const deleted2 = del2 ? del2.length : 0;
+
+        if(deleted1 === 0 && deleted2 === 0 && (feedbackBefore > 0 || answersBefore > 0)){
+          alert("⚠️ 删除命令执行成功，但实际删除了0行数据！\n\n这通常是因为：\n1. 表启用了RLS行级安全，匿名密钥没有DELETE权限\n2. 请在Supabase后台给feedback和form_answers表添加允许DELETE的RLS策略\n\n或者直接在Supabase的SQL Editor中执行：\nDELETE FROM feedback;\nDELETE FROM form_answers;");
+          return;
+        }
+
+        alert("✅删除完成！\n反馈数据：删除 " + deleted1 + " 行（原 " + feedbackBefore + " 行）\n评价数据：删除 " + deleted2 + " 行（原 " + answersBefore + " 行）");
+
         // 重新加载后台数据
         await loadFeedbackData();
         await loadAnswersData();
@@ -1031,6 +1345,11 @@
     window.exportFeedbackCSV = exportFeedbackCSV;
     window.exportAnswersCSV = exportAnswersCSV;
     window.downloadCSV = downloadCSV;
+    window.generateInviteCodes = generateInviteCodes;
+    window.createCustomInviteCode = createCustomInviteCode;
+    window.loadInviteCodes = loadInviteCodes;
+    window.deleteInviteCode = deleteInviteCode;
+    window.exportInviteCodes = exportInviteCodes;
 
     // 页面初始化：加载记住的密码
     loadRememberPassword();

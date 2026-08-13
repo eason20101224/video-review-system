@@ -349,8 +349,8 @@
 
     /* ========== 新增 CSS ========== */
 
-    /* 用户信息弹窗 */
-    #userInfoModal {
+    /* 邀请码弹窗 */
+    #inviteModal {
       position: fixed;
       inset: 0;
       background: rgba(0,0,0,.65);
@@ -359,19 +359,41 @@
       justify-content: center;
       z-index: 9999;
     }
-    #userInfoBox {
+    #inviteBox {
       width: 90%;
-      max-width: 420px;
+      max-width: 380px;
       background: #fff;
       border-radius: 16px;
-      padding: 25px;
-    }
-    #userInfoBox h3 {
-      margin-bottom: 20px;
+      padding: 30px 25px;
       text-align: center;
+    }
+    #inviteBox h3 {
+      margin-bottom: 8px;
       font-size: 18px;
     }
-    #userInfoBox button {
+    #inviteBox .invite-tip {
+      color: #999;
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+    #inviteCodeInput {
+      width: 100%;
+      height: 48px;
+      border: 2px solid #e5e7eb;
+      border-radius: 10px;
+      padding: 0 15px;
+      box-sizing: border-box;
+      font-size: 16px;
+      text-align: center;
+      letter-spacing: 2px;
+      margin-bottom: 15px;
+      outline: none;
+      transition: border-color .2s;
+    }
+    #inviteCodeInput:focus {
+      border-color: #3b82f6;
+    }
+    #inviteBox button {
       width: 100%;
       padding: 12px;
       background: #3b82f6;
@@ -380,40 +402,10 @@
       border-radius: 8px;
       cursor: pointer;
       font-size: 16px;
-      margin-top: 10px;
     }
-    .user-info-item {
-      margin-bottom: 15px;
-    }
-    .user-info-item label {
-      display: block;
-      margin-bottom: 6px;
-      font-weight: bold;
-      font-size: 14px;
-    }
-    .user-info-item input {
-      width: 100%;
-      height: 42px;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 0 10px;
-      box-sizing: border-box;
-      font-size: 14px;
-    }
-    .gender-box {
-      display: flex;
-      gap: 20px;
-    }
-    .gender-box label {
-      font-weight: normal;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      cursor: pointer;
-    }
-    .gender-box input {
-      width: auto;
-      height: auto;
+    #inviteBox button:disabled {
+      background: #cbd5e1;
+      cursor: not-allowed;
     }
 
     /* 反馈操作按钮 */
@@ -485,32 +477,13 @@
   </style>
 </head>
 <body>
-  <!-- 用户信息填写 -->
-  <div id="userInfoModal">
-    <div id="userInfoBox">
-      <h3>请填写基本信息</h3>
-      <div class="user-info-item">
-        <label>姓名</label>
-        <input id="userNameInput" maxlength="20" placeholder="请输入姓名">
-      </div>
-      <div class="user-info-item">
-        <label>性别</label>
-        <div class="gender-box">
-          <label>
-            <input type="radio" name="gender" value="男">
-            男
-          </label>
-          <label>
-            <input type="radio" name="gender" value="女">
-            女
-          </label>
-        </div>
-      </div>
-      <div class="user-info-item">
-        <label>年龄</label>
-        <input id="userAgeInput" type="number" placeholder="10-99">
-      </div>
-      <button onclick="submitUserInfo()">开始审阅</button>
+  <!-- 邀请码验证 -->
+  <div id="inviteModal">
+    <div id="inviteBox">
+      <h3>请输入邀请码</h3>
+      <p class="invite-tip">每个邀请码仅限使用一次</p>
+      <input id="inviteCodeInput" maxlength="16" placeholder="请输入邀请码" autocomplete="off">
+      <button id="inviteSubmitBtn" onclick="verifyInviteCode()">进入审阅</button>
     </div>
   </div>
 
@@ -647,12 +620,9 @@
       localStorage.setItem('review_user_id', userId);
     }
 
-    // 用户信息
-    let userInfo = {
-      name: "",
-      gender: "",
-      age: ""
-    };
+    // 邀请码
+    let currentInviteCode = "";
+    let inviteVerified = false;
 
     // 反馈暂存队列
     let pendingFeedback = [];
@@ -681,40 +651,98 @@
       }
     }
 
-    // 页面加载检查用户信息
-    function checkUserInfo() {
-      const saved = localStorage.getItem("review_user_info");
+    // 页面加载检查邀请码
+    function checkInviteCode() {
+      const saved = localStorage.getItem("review_invite_code");
       if (saved) {
-        userInfo = JSON.parse(saved);
-        document.getElementById("userInfoModal").style.display = "none";
+        currentInviteCode = saved;
+        inviteVerified = true;
+        document.getElementById("inviteModal").style.display = "none";
       }
     }
 
-    function submitUserInfo() {
-      const name = document.getElementById("userNameInput").value.trim();
-      const gender = document.querySelector('input[name="gender"]:checked');
-      const age = Number(document.getElementById("userAgeInput").value);
+    // 验证邀请码（支持多次使用）
+    async function verifyInviteCode() {
+      const code = document.getElementById("inviteCodeInput").value.trim().toUpperCase();
+      const btn = document.getElementById("inviteSubmitBtn");
 
-      if (
-        name.length < 2 ||
-        name.length > 20 ||
-        !gender ||
-        !Number.isInteger(age) ||
-        age < 10 ||
-        age > 99
-      ) {
-        showToast("填写内容不正确");
+      if (!code) {
+        showToast("请输入邀请码");
         return;
       }
 
-      userInfo = {
-        name: name,
-        gender: gender.value,
-        age: age
-      };
+      btn.disabled = true;
+      btn.textContent = "验证中...";
 
-      localStorage.setItem("review_user_info", JSON.stringify(userInfo));
-      document.getElementById("userInfoModal").style.display = "none";
+      try {
+        // 查询邀请码是否存在且未达使用上限
+        const { data: codes, error } = await supabase
+          .from('invitation_codes')
+          .select('id, code, is_used, max_uses, current_uses')
+          .eq('code', code)
+          .limit(1);
+
+        if (error) {
+          showToast("验证失败，请重试");
+          btn.disabled = false;
+          btn.textContent = "进入审阅";
+          return;
+        }
+
+        if (!codes || codes.length === 0) {
+          showToast("邀请码不存在");
+          btn.disabled = false;
+          btn.textContent = "进入审阅";
+          return;
+        }
+
+        const inviteRecord = codes[0];
+        const maxUses = inviteRecord.max_uses || 1;
+        const currentUses = inviteRecord.current_uses || 0;
+
+        // 兼容旧数据：is_used 为 true 或已达上限
+        if (inviteRecord.is_used || currentUses >= maxUses) {
+          showToast("该邀请码已达使用上限");
+          btn.disabled = false;
+          btn.textContent = "进入审阅";
+          return;
+        }
+
+        // 使用次数 +1，如果达到上限则标记为已使用
+        const newUses = currentUses + 1;
+        const updateData = {
+          current_uses: newUses,
+          used_by: userId,
+          used_at: new Date().toISOString()
+        };
+        if (newUses >= maxUses) {
+          updateData.is_used = true;
+        }
+
+        const { error: updateError } = await supabase
+          .from('invitation_codes')
+          .update(updateData)
+          .eq('id', inviteRecord.id);
+
+        if (updateError) {
+          showToast("验证失败，请重试");
+          btn.disabled = false;
+          btn.textContent = "进入审阅";
+          return;
+        }
+
+        // 验证成功
+        currentInviteCode = code;
+        inviteVerified = true;
+        localStorage.setItem("review_invite_code", code);
+        document.getElementById("inviteModal").style.display = "none";
+        showToast("验证成功，欢迎使用");
+
+      } catch (e) {
+        showToast("网络错误，请重试");
+        btn.disabled = false;
+        btn.textContent = "进入审阅";
+      }
     }
 
     // 图片查看功能
@@ -1242,9 +1270,7 @@
       const totalDuration = questionDurations.reduce((a,b) => a+b, 0);
       const submitData = {
         user_id: userId,
-        user_name: userInfo.name,
-        user_gender: userInfo.gender,
-        user_age: userInfo.age,
+        invite_code: currentInviteCode,
         video_id: 'default',
         total_duration: totalDuration,
         q1_score1: formAnswers.q1[0],
@@ -1307,7 +1333,7 @@
       window.selectQ4 = selectQ4;
       window.submitForm = submitForm;
       window.closeForm = closeForm;
-      window.submitUserInfo = submitUserInfo;
+      window.verifyInviteCode = verifyInviteCode;
       window.openImageViewer = openImageViewer;
       window.closeImageViewer = closeImageViewer;
       window.likeVideo = likeVideo;
@@ -1317,7 +1343,7 @@
       window.submitFeedback = submitFeedback;
 
       // 启动应用
-      checkUserInfo();
+      checkInviteCode();
       init().catch(err => {
         console.error('观众端初始化失败：', err);
         showToast('页面加载失败，请刷新重试');
