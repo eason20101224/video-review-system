@@ -498,7 +498,7 @@
     let answersData = [];
 
     // 登录
-    async function login() {
+    window.login = async function login() {
       const pwd = document.getElementById('passwordInput').value;
       const { data } = await supabase
         .from('admin_config')
@@ -517,7 +517,7 @@
       }
     }
 
-    function logout() {
+    window.logout = function logout() {
       document.getElementById('loginBox').style.display = 'block';
       document.getElementById('adminPanel').style.display = 'none';
       document.getElementById('passwordInput').value = '';
@@ -860,6 +860,14 @@ async function clearAllBusinessData(){
     alert("执行异常："+e.message);
   }
 }
+
+    // 兼容 HTML onclick 调用：确保所有按钮事件函数挂载到 window
+    window.switchTab = switchTab;
+    window.toggleFeedback = toggleFeedback;
+    window.saveProjectConfig = saveProjectConfig;
+    window.saveContentConfig = saveContentConfig;
+    window.changePassword = changePassword;
+    window.clearAllBusinessData = clearAllBusinessData;
   </script>
 </body>
 </html>
