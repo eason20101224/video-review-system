@@ -212,7 +212,7 @@
     <div class="login-box" id="loginBox">
       <h2>管理后台登录</h2>
       <input type="password" id="passwordInput" placeholder="请输入管理员密码">
-      <button class="login-btn" onclick="login()">登录</button>
+      <button class="login-btn" id="loginBtn">登录</button>
     </div>
 
     <!-- 管理面板 -->
@@ -494,7 +494,7 @@
     // =====================================
 
     window.supabaseClient = window.supabaseClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const supabase = window.supabaseClient;
+    var supabase = window.supabaseClient;
     let feedbackSummary = [];
     let answersData = [];
 
@@ -869,6 +869,12 @@ async function clearAllBusinessData(){
     window.saveContentConfig = saveContentConfig;
     window.changePassword = changePassword;
     window.clearAllBusinessData = clearAllBusinessData;
+    // Cloudflare Pages compatibility: bind login without inline onclick
+    document.addEventListener('DOMContentLoaded', function() {
+      const btn = document.getElementById('loginBtn');
+      if (btn) btn.addEventListener('click', window.login);
+    });
+
   </script>
 </body>
 </html>
