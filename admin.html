@@ -488,13 +488,16 @@
   </div>
 
   <script>
+  (function () {
     // ========== 仅修改这两项配置 ==========
     const SUPABASE_URL = 'https://gbosdkzcbqhrfsiqlbdf.supabase.co';
     const SUPABASE_ANON_KEY = 'sb_publishable_9O4JqSBGphBwASfl8YKvxA__gQvXizO';
     // =====================================
 
-    window.supabaseClient = window.supabaseClient || window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const supabase = window.supabaseClient;
+    // 使用 IIFE 私有作用域，避免 Cloudflare/浏览器重复执行脚本时发生全局变量冲突
+    window.__adminSupabaseClient = window.__adminSupabaseClient ||
+      window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const supabase = window.__adminSupabaseClient;
     let feedbackSummary = [];
     let answersData = [];
 
@@ -897,6 +900,10 @@ async function clearAllBusinessData(){
     window.saveContentConfig = saveContentConfig;
     window.changePassword = changePassword;
     window.clearAllBusinessData = clearAllBusinessData;
+    window.exportFeedbackCSV = exportFeedbackCSV;
+    window.exportAnswersCSV = exportAnswersCSV;
+    window.downloadCSV = downloadCSV;
+  })();
   </script>
 </body>
 </html>
