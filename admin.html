@@ -277,12 +277,36 @@
             <input type="text" id="cfg_video_url" placeholder="粘贴视频外链">
           </div>
           <div class="form-row">
+            <label>标题选项数量</label>
+            <select id="cfg_title_count" onchange="toggleTitleInputs()">
+              <option value="2">2个</option>
+              <option value="3">3个</option>
+              <option value="4">4个</option>
+            </select>
+          </div>
+          <div class="form-row">
             <label>标题1</label>
             <input type="text" id="cfg_title1">
           </div>
           <div class="form-row">
             <label>标题2</label>
             <input type="text" id="cfg_title2">
+          </div>
+          <div class="form-row" id="title3Row" style="display:none;">
+            <label>标题3</label>
+            <input type="text" id="cfg_title3">
+          </div>
+          <div class="form-row" id="title4Row" style="display:none;">
+            <label>标题4</label>
+            <input type="text" id="cfg_title4">
+          </div>
+          <div class="form-row">
+            <label>封面选项数量</label>
+            <select id="cfg_cover_count" onchange="toggleCoverInputs()">
+              <option value="2">2个</option>
+              <option value="3">3个</option>
+              <option value="4">4个</option>
+            </select>
           </div>
           <div class="form-row">
             <label>封面1链接</label>
@@ -291,6 +315,14 @@
           <div class="form-row">
             <label>封面2链接</label>
             <input type="text" id="cfg_cover2" placeholder="粘贴封面图片外链">
+          </div>
+          <div class="form-row" id="cover3Row" style="display:none;">
+            <label>封面3链接</label>
+            <input type="text" id="cfg_cover3" placeholder="粘贴封面图片外链">
+          </div>
+          <div class="form-row" id="cover4Row" style="display:none;">
+            <label>封面4链接</label>
+            <input type="text" id="cfg_cover4" placeholder="粘贴封面图片外链">
           </div>
           <button class="btn btn-primary" onclick="saveProjectConfig()">保存项目配置</button>
         </div>
@@ -740,8 +772,20 @@
       document.getElementById('cfg_video_url').value = config.video_url || '';
       document.getElementById('cfg_title1').value = config.title1 || '';
       document.getElementById('cfg_title2').value = config.title2 || '';
+      document.getElementById('cfg_title3').value = config.title3 || '';
+      document.getElementById('cfg_title4').value = config.title4 || '';
       document.getElementById('cfg_cover1').value = config.cover1 || '';
       document.getElementById('cfg_cover2').value = config.cover2 || '';
+      document.getElementById('cfg_cover3').value = config.cover3 || '';
+      document.getElementById('cfg_cover4').value = config.cover4 || '';
+
+      // 设置标题/封面数量并显示对应输入框
+      const titleCount = config.title_count || '2';
+      const coverCount = config.cover_count || '2';
+      document.getElementById('cfg_title_count').value = titleCount;
+      document.getElementById('cfg_cover_count').value = coverCount;
+      toggleTitleInputs();
+      toggleCoverInputs();
 
       // 反馈开关状态
       const btn = document.getElementById('feedbackSwitch');
@@ -845,10 +889,16 @@
         { key: 'project_name', value: document.getElementById('cfg_project_name').value },
         { key: 'deadline', value: document.getElementById('cfg_deadline').value.replace('T', ' ') + ':00' },
         { key: 'video_url', value: document.getElementById('cfg_video_url').value },
+        { key: 'title_count', value: document.getElementById('cfg_title_count').value },
         { key: 'title1', value: document.getElementById('cfg_title1').value },
         { key: 'title2', value: document.getElementById('cfg_title2').value },
+        { key: 'title3', value: document.getElementById('cfg_title3').value },
+        { key: 'title4', value: document.getElementById('cfg_title4').value },
+        { key: 'cover_count', value: document.getElementById('cfg_cover_count').value },
         { key: 'cover1', value: document.getElementById('cfg_cover1').value },
-        { key: 'cover2', value: document.getElementById('cfg_cover2').value }
+        { key: 'cover2', value: document.getElementById('cfg_cover2').value },
+        { key: 'cover3', value: document.getElementById('cfg_cover3').value },
+        { key: 'cover4', value: document.getElementById('cfg_cover4').value }
       ];
 
       const { error } = await supabase.from('form_config').upsert(
@@ -862,6 +912,20 @@
       }
       currentProjectName = document.getElementById('cfg_project_name').value || '视频审阅';
       alert('项目配置保存成功，观众端实时生效');
+    }
+
+    // 切换标题输入框显示
+    function toggleTitleInputs() {
+      const count = parseInt(document.getElementById('cfg_title_count').value);
+      document.getElementById('title3Row').style.display = count >= 3 ? 'block' : 'none';
+      document.getElementById('title4Row').style.display = count >= 4 ? 'block' : 'none';
+    }
+
+    // 切换封面输入框显示
+    function toggleCoverInputs() {
+      const count = parseInt(document.getElementById('cfg_cover_count').value);
+      document.getElementById('cover3Row').style.display = count >= 3 ? 'block' : 'none';
+      document.getElementById('cover4Row').style.display = count >= 4 ? 'block' : 'none';
     }
 
     // 保存内容配置
@@ -1515,6 +1579,8 @@
     window.toggleInviteEnabled = toggleInviteEnabled;
     window.disableAllInviteCodes = disableAllInviteCodes;
     window.refreshAllData = refreshAllData;
+    window.toggleTitleInputs = toggleTitleInputs;
+    window.toggleCoverInputs = toggleCoverInputs;
 
     // 页面初始化：加载记住的密码
     loadRememberPassword();

@@ -242,8 +242,6 @@
     }
     .cover-option img {
       width: 100%;
-      height: 90px;
-      object-fit: contain;
       display: block;
     }
     .cover-option .opt-name {
@@ -498,7 +496,7 @@
   <div id="inviteModal">
     <div id="inviteBox">
       <h3>请输入邀请码</h3>
-      <p class="invite-tip">邀请码请找管理员获取</p>
+      <p class="invite-tip">邀请码请咨询管理员</p>
       <input id="inviteCodeInput" maxlength="16" placeholder="请输入邀请码" autocomplete="off">
       <div class="invite-error" id="inviteError"></div>
       <button id="inviteSubmitBtn" onclick="verifyInviteCode()">进入审阅</button>
@@ -1117,29 +1115,42 @@
         </div>
       `).join('');
 
-      // 渲染第3题选项
-      document.getElementById('q3Options').innerHTML = `
-        <div class="option-item" data-value="title1" onclick="selectQ3(this)">${config.title1 || ''}</div>
-        <div class="option-item" data-value="title2" onclick="selectQ3(this)">${config.title2 || ''}</div>
-        <div class="option-item" data-value="both" onclick="selectQ3(this)">${config.q3_opt3 || ''}</div>
-        <div class="option-item" data-value="none" onclick="selectQ3(this)">${config.q3_opt4 || ''}</div>
-      `;
+      // 渲染第3题选项（根据title_count动态渲染2-4个标题 + 都喜欢 + 都不喜欢）
+      const titleCount = parseInt(config.title_count || '2');
+      const titleLabels = ['A', 'B', 'C', 'D'];
+      let q3Html = '';
+      for (let i = 1; i <= titleCount; i++) {
+        const titleText = config['title' + i] || '';
+        if (titleText) {
+          q3Html += `<div class="option-item" data-value="title${i}" onclick="selectQ3(this)">${titleText}</div>`;
+        }
+      }
+      // 额外选项：都喜欢、都不喜欢
+      if (config.q3_opt3) {
+        q3Html += `<div class="option-item" data-value="both" onclick="selectQ3(this)">${config.q3_opt3}</div>`;
+      }
+      if (config.q3_opt4) {
+        q3Html += `<div class="option-item" data-value="none" onclick="selectQ3(this)">${config.q3_opt4}</div>`;
+      }
+      document.getElementById('q3Options').innerHTML = q3Html;
 
-      // 渲染第4题封面（4:3完整显示，点击放大）
-      document.getElementById('q4Options').innerHTML = `
-        <div class="cover-option" data-value="cover1" onclick="selectQ4(this)">
-          <div class="cover-preview" onclick="event.stopPropagation(); openImageViewer(this.querySelector('img').src)">
-            <img src="${config.cover1}" alt="封面1">
-          </div>
-          <div class="opt-name">封面A</div>
-        </div>
-        <div class="cover-option" data-value="cover2" onclick="selectQ4(this)">
-          <div class="cover-preview" onclick="event.stopPropagation(); openImageViewer(this.querySelector('img').src)">
-            <img src="${config.cover2}" alt="封面2">
-          </div>
-          <div class="opt-name">封面B</div>
-        </div>
-      `;
+      // 渲染第4题封面（根据cover_count动态渲染2-4个，4:3完整显示，点击放大）
+      const coverCount = parseInt(config.cover_count || '2');
+      let q4Html = '';
+      for (let i = 1; i <= coverCount; i++) {
+        const coverUrl = config['cover' + i];
+        if (coverUrl) {
+          q4Html += `
+            <div class="cover-option" data-value="cover${i}" onclick="selectQ4(this)">
+              <div class="cover-preview" onclick="event.stopPropagation(); openImageViewer(this.querySelector('img').src)">
+                <img src="${coverUrl}" alt="封面${titleLabels[i-1]}">
+              </div>
+              <div class="opt-name">封面${titleLabels[i-1]}</div>
+            </div>
+          `;
+        }
+      }
+      document.getElementById('q4Options').innerHTML = q4Html;
     }
 
     // 星级评分
