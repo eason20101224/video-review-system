@@ -474,6 +474,23 @@
       max-width: 95%;
       max-height: 90%;
     }
+
+    /* 邀请码错误提示 */
+    .invite-error {
+      color: #ef4444;
+      font-size: 13px;
+      margin-top: 8px;
+      min-height: 18px;
+      text-align: center;
+    }
+
+    /* 隐藏视频全屏按钮 */
+    video::-webkit-media-controls-fullscreen-button {
+      display: none !important;
+    }
+    video::-internal-media-controls-overlay-cast-button {
+      display: none !important;
+    }
   </style>
 </head>
 <body>
@@ -483,6 +500,7 @@
       <h3>请输入邀请码</h3>
       <p class="invite-tip">每个邀请码仅限使用一次</p>
       <input id="inviteCodeInput" maxlength="16" placeholder="请输入邀请码" autocomplete="off">
+      <div class="invite-error" id="inviteError"></div>
       <button id="inviteSubmitBtn" onclick="verifyInviteCode()">进入审阅</button>
     </div>
   </div>
@@ -508,7 +526,7 @@
   <div class="main-container" id="mainContainer">
     <!-- 左侧视频区 -->
     <div class="video-section">
-      <video id="reviewVideo" controls playsinline>
+      <video id="reviewVideo" controls playsinline controlsList="nodownload nofullscreen noremoteplayback" disablepictureinpicture>
         <source src="" type="video/mp4">
       </video>
       <div class="timeline-bar" id="timelineBar"></div>
@@ -646,19 +664,34 @@
     async function init() {
       await loadConfig();
       checkProjectStatus();
+
+      // 邀请码功能关闭或项目已截止时，不显示邀请码弹窗
+      if (config.invite_enabled === 'false' || isExpired()) {
+        document.getElementById("inviteModal").style.display = "none";
+      } else if (inviteVerified) {
+        document.getElementById("inviteModal").style.display = "none";
+      }
+
       if (config.feedback_enabled === 'true' && !isExpired()) {
         initVideo();
       }
     }
 
-    // 页面加载检查邀请码
+    // 页面加载检查邀请码（只检查本地保存）
     function checkInviteCode() {
       const saved = localStorage.getItem("review_invite_code");
       if (saved) {
         currentInviteCode = saved;
         inviteVerified = true;
-        document.getElementById("inviteModal").style.display = "none";
       }
+    }
+
+    // 显示邀请码错误
+    function showInviteError(msg) {
+      document.getElementById("inviteError").textContent = msg;
+    }
+    function clearInviteError() {
+      document.getElementById("inviteError").textContent = "";
     }
 
     // 验证邀请码（支持多次使用）
@@ -666,8 +699,22 @@
       const code = document.getElementById("inviteCodeInput").value.trim().toUpperCase();
       const btn = document.getElementById("inviteSubmitBtn");
 
+      clearInviteError();
+
       if (!code) {
-        showToast("请输入邀请码");
+        showInviteError("请输入邀请码");
+        return;
+      }
+
+      // 检查邀请码功能是否开启
+      if (config.invite_enabled === 'false') {
+        showInviteError("当前项目未开启邀请码功能");
+        return;
+      }
+
+      // 检查项目是否截止
+      if (isExpired()) {
+        showInviteError("项目已截止，邀请码已失效");
         return;
       }
 
@@ -678,31 +725,40 @@
         // 查询邀请码是否存在且未达使用上限
         const { data: codes, error } = await supabase
           .from('invitation_codes')
-          .select('id, code, is_used, max_uses, current_uses')
+          .select('id, code, is_used, max_uses, current_uses, enabled')
           .eq('code', code)
           .limit(1);
 
         if (error) {
-          showToast("验证失败，请重试");
+          showInviteError("验证失败：" + error.message);
           btn.disabled = false;
           btn.textContent = "进入审阅";
           return;
         }
 
         if (!codes || codes.length === 0) {
-          showToast("邀请码不存在");
+          showInviteError("邀请码不存在，请检查后重试");
           btn.disabled = false;
           btn.textContent = "进入审阅";
           return;
         }
 
         const inviteRecord = codes[0];
+
+        // 检查邀请码是否被禁用
+        if (inviteRecord.enabled === false) {
+          showInviteError("该邀请码已被管理员禁用");
+          btn.disabled = false;
+          btn.textContent = "进入审阅";
+          return;
+        }
+
         const maxUses = inviteRecord.max_uses || 1;
         const currentUses = inviteRecord.current_uses || 0;
 
         // 兼容旧数据：is_used 为 true 或已达上限
         if (inviteRecord.is_used || currentUses >= maxUses) {
-          showToast("该邀请码已达使用上限");
+          showInviteError("该邀请码已达使用上限，无法继续使用");
           btn.disabled = false;
           btn.textContent = "进入审阅";
           return;
@@ -725,7 +781,7 @@
           .eq('id', inviteRecord.id);
 
         if (updateError) {
-          showToast("验证失败，请重试");
+          showInviteError("验证失败：" + updateError.message);
           btn.disabled = false;
           btn.textContent = "进入审阅";
           return;
@@ -739,7 +795,7 @@
         showToast("验证成功，欢迎使用");
 
       } catch (e) {
-        showToast("网络错误，请重试");
+        showInviteError("网络错误：" + e.message);
         btn.disabled = false;
         btn.textContent = "进入审阅";
       }
@@ -807,6 +863,26 @@
           btn.innerHTML = "⭐ 视频完成，请填写评价";
         }
         showToast("视频观看完成，请填写评价");
+      });
+
+      // 禁止全屏：监听全屏事件，进入全屏时自动退出并提示
+      function handleFullscreenChange() {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+          if (document.exitFullscreen) {
+            document.exitFullscreen();
+          } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+          }
+          alert("为了保证反馈效果，暂不支持全屏");
+        }
+      }
+      document.addEventListener('fullscreenchange', handleFullscreenChange);
+      document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+      // 阻止双击全屏
+      video.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
       });
     }
 
@@ -896,12 +972,21 @@
         return;
       }
 
-      if (!confirm("确认提交当前反馈？")) {
+      // 一设备一邀请码只能提交一次反馈
+      const submittedKey = "review_feedback_submitted_" + currentInviteCode;
+      if (localStorage.getItem(submittedKey)) {
+        alert("该邀请码在此设备上已提交过反馈，无法重复提交");
+        return;
+      }
+
+      // 提交确认提示
+      if (!confirm("每个邀请码每台设备只能提交一次反馈，确定提交吗？")) {
         return;
       }
 
       const rows = pendingFeedback.map(item => ({
         user_id: userId,
+        invite_code: currentInviteCode,
         video_id: "default",
         type: item.type,
         time: item.time
@@ -910,10 +995,12 @@
       const { error } = await supabase.from("feedback").insert(rows);
 
       if (error) {
-        showToast("提交失败");
+        alert("反馈提交失败：" + error.message + "\n请截图反馈给管理员\n常见原因：feedback表不存在或未配置RLS INSERT策略");
         return;
       }
 
+      // 标记已提交
+      localStorage.setItem(submittedKey, 'true');
       pendingFeedback = [];
       updateFeedbackCount();
       showToast("反馈提交成功");
@@ -1092,6 +1179,8 @@
 
           const arr = reasons[dim] || [];
           arr.forEach(reason => {
+            // 跳过"其他"，避免重复（后面统一添加）
+            if (reason === '其他') return;
             html += `
               <div class="option-item multi" data-dim="${dim}" data-reason="${reason}" onclick="toggleQ2Reason(this)">
                 ${reason}
@@ -1113,6 +1202,30 @@
       }
 
       document.getElementById("q2Content").innerHTML = html;
+
+      // 恢复之前选中的状态（回退后重新渲染时使用）
+      setTimeout(() => {
+        Object.keys(formAnswers.q2).forEach(dim => {
+          const selectedReasons = formAnswers.q2[dim] || [];
+          selectedReasons.forEach(reason => {
+            const el = document.querySelector(`.option-item[data-dim="${dim}"][data-reason="${reason}"]`);
+            if (el) {
+              el.classList.add("selected");
+              // 如果是"其他"，显示输入框
+              if (reason === "其他") {
+                let input;
+                if (dim === "整体评价") {
+                  input = document.getElementById("q2OverallOther");
+                } else {
+                  let idx = dimNames.indexOf(dim);
+                  input = document.getElementById("other_" + idx);
+                }
+                if (input) input.style.display = "block";
+              }
+            }
+          });
+        });
+      }, 0);
     }
 
     // 第2题多选切换（新版：增加其他输入框显示逻辑）
@@ -1200,15 +1313,41 @@
           }
           return true;
         case 2:
-          let hasReason = false;
-          Object.keys(formAnswers.q2).forEach(k => {
-            if (formAnswers.q2[k] && formAnswers.q2[k].length > 0) {
-              hasReason = true;
+          // 获取所有低分维度
+          const dimNames = [
+            config.q1_dim1,
+            config.q1_dim2,
+            config.q1_dim3,
+            config.q1_dim4,
+            config.q1_dim5
+          ];
+          const lowDims = [];
+
+          // 整体评价低分
+          const totalScore = formAnswers.q1.reduce((a, b) => a + b, 0);
+          const avg = totalScore / formAnswers.q1.length;
+          if (avg <= 3) {
+            lowDims.push('整体评价');
+          }
+
+          // 各维度低分
+          dimNames.forEach((dim, index) => {
+            if (formAnswers.q1[index] <= 3 && formAnswers.q1[index] > 0) {
+              lowDims.push(dim);
             }
           });
-          if (!hasReason) {
-            showToast("请选择不满意原因");
-            return false;
+
+          // 检查每个低分维度是否都选择了原因
+          for (const dim of lowDims) {
+            const selected = formAnswers.q2[dim] || [];
+            if (selected.length === 0) {
+              showToast(`请选择"${dim}"的不满意原因`);
+              return false;
+            }
+          }
+
+          if (lowDims.length === 0) {
+            return true;
           }
           return true;
         case 3:
@@ -1267,6 +1406,18 @@
 
     // 提交表单（增加用户信息）
     async function submitForm() {
+      // 一设备一邀请码只能提交一次评价
+      const submittedKey = "review_submitted_" + currentInviteCode;
+      if (localStorage.getItem(submittedKey)) {
+        alert("该邀请码在此设备上已提交过评价，无法重复提交");
+        return;
+      }
+
+      // 提交确认提示
+      if (!confirm("每个邀请码每台设备只能提交一次评价，确定提交吗？")) {
+        return;
+      }
+
       const totalDuration = questionDurations.reduce((a,b) => a+b, 0);
       const submitData = {
         user_id: userId,
@@ -1293,10 +1444,12 @@
 
       const { error } = await supabase.from('form_answers').insert([submitData]);
       if (error) {
-        showToast('提交失败，请重试');
+        alert('评价提交失败：' + error.message + '\n请截图反馈给管理员');
         return;
       }
 
+      // 标记已提交
+      localStorage.setItem(submittedKey, 'true');
       showToast('评价提交成功，感谢参与！');
       setTimeout(() => {
         document.getElementById('formModal').classList.remove('show');

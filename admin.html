@@ -524,6 +524,16 @@
         </div>
 
         <div class="section">
+          <h3>邀请码功能设置</h3>
+          <div class="form-row">
+            <label>邀请码功能</label>
+            <button class="switch-btn on" id="inviteEnabledSwitch" onclick="toggleInviteEnabled()">已开启</button>
+          </div>
+          <button class="btn btn-red" onclick="disableAllInviteCodes()">一键失效所有邀请码</button>
+          <p style="color:#999;font-size:12px;margin-top:8px;">一键失效后，所有邀请码将无法使用，新项目需重新生成</p>
+        </div>
+
+        <div class="section">
           <h3>批量生成邀请码</h3>
           <div class="form-row">
             <label>生成数量</label>
@@ -701,6 +711,18 @@
       } else {
         btn.className = 'switch-btn off';
         btn.textContent = '已暂停';
+      }
+
+      // 邀请码开关状态
+      const inviteBtn = document.getElementById('inviteEnabledSwitch');
+      if (inviteBtn) {
+        if (config.invite_enabled === 'false') {
+          inviteBtn.className = 'switch-btn';
+          inviteBtn.textContent = '已关闭';
+        } else {
+          inviteBtn.className = 'switch-btn on';
+          inviteBtn.textContent = '已开启';
+        }
       }
 
       // 填充内容配置
@@ -1073,6 +1095,7 @@
         codes.push({
           code: generateRandomCode(),
           is_used: false,
+          enabled: true,
           max_uses: maxUses,
           current_uses: 0
         });
@@ -1134,6 +1157,7 @@
           .insert({
             code: code,
             is_used: false,
+            enabled: true,
             max_uses: maxUses,
             current_uses: 0
           })
@@ -1187,22 +1211,38 @@
           const cur = item.current_uses || 0;
           const remaining = Math.max(0, max - cur);
           const isFull = item.is_used || cur >= max;
+          const isDisabled = item.enabled === false;
           const progress = Math.min(100, Math.round((cur / max) * 100));
+
+          let statusText, statusColor;
+          if (isDisabled) {
+            statusText = '已禁用';
+            statusColor = '#ef4444';
+          } else if (isFull) {
+            statusText = '已用完';
+            statusColor = '#999';
+          } else {
+            statusText = `剩余${remaining}次`;
+            statusColor = '#22c55e';
+          }
 
           return `
           <tr>
-            <td style="font-family:monospace;font-weight:bold;letter-spacing:1px;">${item.code}</td>
+            <td style="font-family:monospace;font-weight:bold;letter-spacing:1px;">
+              ${item.code}
+              <button class="btn btn-blue" style="padding:2px 8px;font-size:11px;margin-left:6px;" onclick="copyInviteCode('${item.code}')">复制</button>
+            </td>
             <td>
               <div style="display:flex;align-items:center;gap:8px;">
                 <div style="flex:1;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden;min-width:60px;">
-                  <div style="width:${progress}%;height:100%;background:${isFull ? '#9ca3af' : '#22c55e'};"></div>
+                  <div style="width:${progress}%;height:100%;background:${isFull || isDisabled ? '#9ca3af' : '#22c55e'};"></div>
                 </div>
                 <span style="font-size:12px;white-space:nowrap;">${cur}/${max}</span>
               </div>
             </td>
             <td>
-              <span style="color:${isFull ? '#999' : '#22c55e'};font-weight:bold;">
-                ${isFull ? '已用完' : `剩余${remaining}次`}
+              <span style="color:${statusColor};font-weight:bold;">
+                ${statusText}
               </span>
             </td>
             <td>${item.used_by || '-'}</td>
@@ -1238,6 +1278,87 @@
         loadInviteCodes();
       } catch (e) {
         alert('删除异常：' + e.message);
+      }
+    }
+
+    // 复制邀请码
+    function copyInviteCode(code) {
+      const textarea = document.createElement('textarea');
+      textarea.value = code;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        alert('邀请码已复制：' + code);
+      } catch (e) {
+        alert('复制失败，请手动复制：' + code);
+      }
+      document.body.removeChild(textarea);
+    }
+
+    // 切换邀请码功能开关
+    async function toggleInviteEnabled() {
+      const btn = document.getElementById('inviteEnabledSwitch');
+      const isOn = btn.textContent === '已开启';
+      const newValue = isOn ? 'false' : 'true';
+
+      try {
+        const { error } = await supabase.from('form_config').upsert(
+          { key: 'invite_enabled', value: newValue },
+          { onConflict: 'key' }
+        );
+
+        if (error) {
+          alert('切换失败：' + error.message);
+          return;
+        }
+
+        if (newValue === 'true') {
+          btn.className = 'switch-btn on';
+          btn.textContent = '已开启';
+        } else {
+          btn.className = 'switch-btn';
+          btn.textContent = '已关闭';
+        }
+      } catch (e) {
+        alert('切换异常：' + e.message);
+      }
+    }
+
+    // 加载邀请码开关状态
+    function loadInviteEnabled() {
+      const btn = document.getElementById('inviteEnabledSwitch');
+      if (config.invite_enabled === 'false') {
+        btn.className = 'switch-btn';
+        btn.textContent = '已关闭';
+      } else {
+        btn.className = 'switch-btn on';
+        btn.textContent = '已开启';
+      }
+    }
+
+    // 一键失效所有邀请码
+    async function disableAllInviteCodes() {
+      if (!confirm('确定要一键失效所有邀请码吗？\n失效后所有邀请码将无法使用，新项目需重新生成。')) return;
+      if (!confirm('再次确认：此操作不可撤销，确定继续？')) return;
+
+      try {
+        const { error } = await supabase
+          .from('invitation_codes')
+          .update({ enabled: false, is_used: true })
+          .or('id.not.is.null,id.is.null');
+
+        if (error) {
+          alert('失效失败：' + error.message);
+          return;
+        }
+
+        alert('所有邀请码已失效');
+        loadInviteCodes();
+      } catch (e) {
+        alert('失效异常：' + e.message);
       }
     }
 
@@ -1350,6 +1471,9 @@
     window.loadInviteCodes = loadInviteCodes;
     window.deleteInviteCode = deleteInviteCode;
     window.exportInviteCodes = exportInviteCodes;
+    window.copyInviteCode = copyInviteCode;
+    window.toggleInviteEnabled = toggleInviteEnabled;
+    window.disableAllInviteCodes = disableAllInviteCodes;
 
     // 页面初始化：加载记住的密码
     loadRememberPassword();
