@@ -236,7 +236,10 @@
     <div class="admin-panel" id="adminPanel">
       <div class="header">
         <h2>视频审阅数据后台</h2>
-        <button class="logout-btn" onclick="logout()">退出登录</button>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-blue" style="padding:6px 16px;font-size:13px;" onclick="refreshAllData()">刷新数据</button>
+          <button class="logout-btn" onclick="logout()">退出登录</button>
+        </div>
       </div>
 
       <!-- 标签页 -->
@@ -670,6 +673,43 @@
       document.getElementById('loginBox').style.display = 'block';
       document.getElementById('adminPanel').style.display = 'none';
       document.getElementById('passwordInput').value = '';
+    }
+
+    // 刷新所有数据（不刷新页面）
+    async function refreshAllData() {
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = '刷新中...';
+      btn.disabled = true;
+
+      try {
+        await Promise.all([
+          loadAllConfig(),
+          loadFeedbackData(),
+          loadAnswersData(),
+          loadInviteCodes()
+        ]);
+        adminToast('数据已刷新');
+      } catch (e) {
+        alert('刷新失败：' + e.message);
+      } finally {
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+
+    // 简单提示
+    function adminToast(msg) {
+      let toast = document.getElementById('adminToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'adminToast';
+        toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:6px;z-index:99999;font-size:14px;opacity:0;transition:opacity .3s;';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      setTimeout(() => { toast.style.opacity = '0'; }, 2000);
     }
 
     // 切换标签
@@ -1474,6 +1514,7 @@
     window.copyInviteCode = copyInviteCode;
     window.toggleInviteEnabled = toggleInviteEnabled;
     window.disableAllInviteCodes = disableAllInviteCodes;
+    window.refreshAllData = refreshAllData;
 
     // 页面初始化：加载记住的密码
     loadRememberPassword();

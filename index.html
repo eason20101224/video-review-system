@@ -669,11 +669,47 @@
       if (config.invite_enabled === 'false' || isExpired()) {
         document.getElementById("inviteModal").style.display = "none";
       } else if (inviteVerified) {
-        document.getElementById("inviteModal").style.display = "none";
+        // 验证保存的邀请码当前是否还有效
+        const stillValid = await validateSavedInviteCode(currentInviteCode);
+        if (!stillValid) {
+          // 邀请码已失效，清除本地保存，重新显示弹窗
+          localStorage.removeItem("review_invite_code");
+          currentInviteCode = '';
+          inviteVerified = false;
+          document.getElementById("inviteModal").style.display = "block";
+          showInviteError("该邀请码已失效，请使用新的邀请码");
+        } else {
+          document.getElementById("inviteModal").style.display = "none";
+        }
       }
 
       if (config.feedback_enabled === 'true' && !isExpired()) {
         initVideo();
+      }
+    }
+
+    // 验证保存的邀请码是否还有效
+    async function validateSavedInviteCode(code) {
+      if (!code) return false;
+      try {
+        const { data, error } = await supabase
+          .from('invitation_codes')
+          .select('id, is_used, max_uses, current_uses, enabled')
+          .eq('code', code)
+          .limit(1);
+
+        if (error || !data || data.length === 0) return false;
+
+        const record = data[0];
+        if (record.enabled === false) return false;
+        if (record.is_used) return false;
+
+        const max = record.max_uses || 1;
+        const cur = record.current_uses || 0;
+        return cur < max;
+      } catch (e) {
+        // 网络错误时暂时认为有效，避免影响使用
+        return true;
       }
     }
 
@@ -992,7 +1028,26 @@
         time: item.time
       }));
 
-      const { error } = await supabase.from("feedback").insert(rows);
+      let { error } = await supabase.from("feedback").insert(rows);
+
+      // 兼容：如果 feedback 表没有 invite_code 字段，自动去掉重试
+      if (error && error.message && error.message.indexOf('invite_code') >= 0) {
+        const rowsWithoutInvite = pendingFeedback.map(item => ({
+          user_id: userId,
+          video_id: "default",
+          type: item.type,
+          time: item.time
+        }));
+        const retry = await supabase.from("feedback").insert(rowsWithoutInvite);
+        error = retry.error;
+        if (!error) {
+          showToast("反馈提交成功（注：feedback表缺少invite_code字段，建议管理员添加）");
+          localStorage.setItem(submittedKey, 'true');
+          pendingFeedback = [];
+          updateFeedbackCount();
+          return;
+        }
+      }
 
       if (error) {
         alert("反馈提交失败：" + error.message + "\n请截图反馈给管理员\n常见原因：feedback表不存在或未配置RLS INSERT策略");
