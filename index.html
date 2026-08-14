@@ -1005,15 +1005,21 @@
         return;
       }
 
-      // 一设备一邀请码只能提交一次反馈
-      const submittedKey = "review_feedback_submitted_" + currentInviteCode;
+      // 提交限制：邀请码开启时一邀请码一设备一次，关闭时一设备一次
+      const inviteEnabled = config.invite_enabled !== 'false';
+      const submittedKey = inviteEnabled
+        ? "review_feedback_submitted_" + currentInviteCode
+        : "review_feedback_submitted_device_" + userId;
       if (localStorage.getItem(submittedKey)) {
-        alert("该邀请码在此设备上已提交过反馈，无法重复提交");
+        alert(inviteEnabled ? "该邀请码在此设备上已提交过反馈，无法重复提交" : "此设备已提交过反馈，无法重复提交");
         return;
       }
 
       // 提交确认提示
-      if (!confirm("每个邀请码每台设备只能提交一次反馈，确定提交吗？")) {
+      const confirmMsg = inviteEnabled
+        ? "每个邀请码每台设备只能提交一次反馈，确定提交吗？"
+        : "每台设备只能提交一次反馈，确定提交吗？";
+      if (!confirm(confirmMsg)) {
         return;
       }
 
@@ -1484,15 +1490,21 @@
 
     // 提交表单（增加用户信息）
     async function submitForm() {
-      // 一设备一邀请码只能提交一次评价
-      const submittedKey = "review_submitted_" + currentInviteCode;
+      // 提交限制：邀请码开启时一邀请码一设备一次，关闭时一设备一次
+      const inviteEnabled = config.invite_enabled !== 'false';
+      const submittedKey = inviteEnabled
+        ? "review_submitted_" + currentInviteCode
+        : "review_submitted_device_" + userId;
       if (localStorage.getItem(submittedKey)) {
-        alert("该邀请码在此设备上已提交过评价，无法重复提交");
+        alert(inviteEnabled ? "该邀请码在此设备上已提交过评价，无法重复提交" : "此设备已提交过评价，无法重复提交");
         return;
       }
 
       // 提交确认提示
-      if (!confirm("每个邀请码每台设备只能提交一次评价，确定提交吗？")) {
+      const confirmMsg = inviteEnabled
+        ? "每个邀请码每台设备只能提交一次评价，确定提交吗？"
+        : "每台设备只能提交一次评价，确定提交吗？";
+      if (!confirm(confirmMsg)) {
         return;
       }
 

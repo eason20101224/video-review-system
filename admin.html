@@ -931,17 +931,17 @@
     // 切换标题输入框显示
     function toggleTitleInputs() {
       const count = parseInt(document.getElementById('cfg_title_count').value);
-      document.getElementById('title3Row').style.display = count >= 3 ? 'block' : 'none';
-      document.getElementById('title4Row').style.display = count >= 4 ? 'block' : 'none';
+      document.getElementById('title3Row').style.display = count >= 3 ? 'flex' : 'none';
+      document.getElementById('title4Row').style.display = count >= 4 ? 'flex' : 'none';
     }
 
     // 切换封面输入框显示
     function toggleCoverInputs() {
       const count = parseInt(document.getElementById('cfg_cover_count').value);
-      document.getElementById('cover3Row').style.display = count >= 3 ? 'block' : 'none';
-      document.getElementById('cover4Row').style.display = count >= 4 ? 'block' : 'none';
-      document.getElementById('cover5Row').style.display = count >= 5 ? 'block' : 'none';
-      document.getElementById('cover6Row').style.display = count >= 6 ? 'block' : 'none';
+      document.getElementById('cover3Row').style.display = count >= 3 ? 'flex' : 'none';
+      document.getElementById('cover4Row').style.display = count >= 4 ? 'flex' : 'none';
+      document.getElementById('cover5Row').style.display = count >= 5 ? 'flex' : 'none';
+      document.getElementById('cover6Row').style.display = count >= 6 ? 'flex' : 'none';
     }
 
     // 保存内容配置
