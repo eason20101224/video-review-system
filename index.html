@@ -594,7 +594,6 @@
       <div class="question" id="q4">
         <div class="question-title" id="q4Title"></div>
         <div class="cover-options" id="q4Options"></div>
-        <div class="option-item" data-value="both" onclick="selectQ4(this)">都喜欢</div>
         <div class="option-item" data-value="none" onclick="selectQ4(this)">都不喜欢</div>
         <input type="text" class="other-input" id="q4Other" placeholder="">
       </div>
@@ -651,8 +650,8 @@
     let formAnswers = {
       q1: [0,0,0,0,0],
       q2: {},
-      q3: '', q3Other: '',
-      q4: '', q4Other: '',
+      q3: [], q3Other: '',
+      q4: [], q4Other: '',
       q5: ''
     };
     let questionStartTime = 0;
@@ -1115,9 +1114,9 @@
         </div>
       `).join('');
 
-      // 渲染第3题选项（根据title_count动态渲染2-4个标题 + 都喜欢 + 都不喜欢）
+      // 渲染第3题选项（根据title_count动态渲染2-4个标题 + 都不喜欢，多选）
       const titleCount = parseInt(config.title_count || '2');
-      const titleLabels = ['A', 'B', 'C', 'D'];
+      const titleLabels = ['A', 'B', 'C', 'D', 'E', 'F'];
       let q3Html = '';
       for (let i = 1; i <= titleCount; i++) {
         const titleText = config['title' + i] || '';
@@ -1125,16 +1124,13 @@
           q3Html += `<div class="option-item" data-value="title${i}" onclick="selectQ3(this)">${titleText}</div>`;
         }
       }
-      // 额外选项：都喜欢、都不喜欢
-      if (config.q3_opt3) {
-        q3Html += `<div class="option-item" data-value="both" onclick="selectQ3(this)">${config.q3_opt3}</div>`;
-      }
+      // 额外选项：都不喜欢
       if (config.q3_opt4) {
         q3Html += `<div class="option-item" data-value="none" onclick="selectQ3(this)">${config.q3_opt4}</div>`;
       }
       document.getElementById('q3Options').innerHTML = q3Html;
 
-      // 渲染第4题封面（根据cover_count动态渲染2-4个，4:3完整显示，点击放大）
+      // 渲染第4题封面（根据cover_count动态渲染2-6个，4:3完整显示，点击放大，多选）
       const coverCount = parseInt(config.cover_count || '2');
       let q4Html = '';
       for (let i = 1; i <= coverCount; i++) {
@@ -1162,20 +1158,36 @@
       });
     }
 
-    // 第3题选择
+    // 第3题选择（多选）
     function selectQ3(el) {
-      document.querySelectorAll('#q3 .option-item').forEach(o => o.classList.remove('selected'));
-      el.classList.add('selected');
-      formAnswers.q3 = el.dataset.value;
-      document.getElementById('q3Other').classList.toggle('show', el.dataset.value === 'none');
+      const value = el.dataset.value;
+      const idx = formAnswers.q3.indexOf(value);
+      if (idx >= 0) {
+        formAnswers.q3.splice(idx, 1);
+        el.classList.remove('selected');
+      } else {
+        formAnswers.q3.push(value);
+        el.classList.add('selected');
+      }
+      // 选了"都不喜欢"时显示其他输入框
+      const hasNone = formAnswers.q3.indexOf('none') >= 0;
+      document.getElementById('q3Other').classList.toggle('show', hasNone);
     }
 
-    // 第4题选择
+    // 第4题选择（多选）
     function selectQ4(el) {
-      document.querySelectorAll('#q4 .cover-option, #q4 .option-item').forEach(o => o.classList.remove('selected'));
-      el.classList.add('selected');
-      formAnswers.q4 = el.dataset.value;
-      document.getElementById('q4Other').classList.toggle('show', el.dataset.value === 'none');
+      const value = el.dataset.value;
+      const idx = formAnswers.q4.indexOf(value);
+      if (idx >= 0) {
+        formAnswers.q4.splice(idx, 1);
+        el.classList.remove('selected');
+      } else {
+        formAnswers.q4.push(value);
+        el.classList.add('selected');
+      }
+      // 选了"都不喜欢"时显示其他输入框
+      const hasNone = formAnswers.q4.indexOf('none') >= 0;
+      document.getElementById('q4Other').classList.toggle('show', hasNone);
     }
 
     // 切换题目
@@ -1417,22 +1429,22 @@
           }
           return true;
         case 3:
-          if (!formAnswers.q3) {
-            showToast('请选择一个选项');
+          if (formAnswers.q3.length === 0) {
+            showToast('请至少选择一个选项');
             return false;
           }
-          if (formAnswers.q3 === 'none' && !document.getElementById('q3Other').value.trim()) {
+          if (formAnswers.q3.indexOf('none') >= 0 && !document.getElementById('q3Other').value.trim()) {
             showToast('请输入您感兴趣的标题方向');
             return false;
           }
           formAnswers.q3Other = document.getElementById('q3Other').value.trim();
           return true;
         case 4:
-          if (!formAnswers.q4) {
-            showToast('请选择一个选项');
+          if (formAnswers.q4.length === 0) {
+            showToast('请至少选择一个选项');
             return false;
           }
-          if (formAnswers.q4 === 'none' && !document.getElementById('q4Other').value.trim()) {
+          if (formAnswers.q4.indexOf('none') >= 0 && !document.getElementById('q4Other').value.trim()) {
             showToast('请描述您喜欢的封面风格');
             return false;
           }
@@ -1496,9 +1508,9 @@
         q1_score4: formAnswers.q1[3],
         q1_score5: formAnswers.q1[4],
         q2_reasons: JSON.stringify(formAnswers.q2),
-        q3_choice: formAnswers.q3,
+        q3_choice: JSON.stringify(formAnswers.q3),
         q3_other: formAnswers.q3Other,
-        q4_choice: formAnswers.q4,
+        q4_choice: JSON.stringify(formAnswers.q4),
         q4_other: formAnswers.q4Other,
         q5_suggestion: formAnswers.q5,
         q1_duration: questionDurations[0],

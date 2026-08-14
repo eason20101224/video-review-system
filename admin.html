@@ -306,6 +306,8 @@
               <option value="2">2个</option>
               <option value="3">3个</option>
               <option value="4">4个</option>
+              <option value="5">5个</option>
+              <option value="6">6个</option>
             </select>
           </div>
           <div class="form-row">
@@ -323,6 +325,14 @@
           <div class="form-row" id="cover4Row" style="display:none;">
             <label>封面4链接</label>
             <input type="text" id="cfg_cover4" placeholder="粘贴封面图片外链">
+          </div>
+          <div class="form-row" id="cover5Row" style="display:none;">
+            <label>封面5链接</label>
+            <input type="text" id="cfg_cover5" placeholder="粘贴封面图片外链">
+          </div>
+          <div class="form-row" id="cover6Row" style="display:none;">
+            <label>封面6链接</label>
+            <input type="text" id="cfg_cover6" placeholder="粘贴封面图片外链">
           </div>
           <button class="btn btn-primary" onclick="saveProjectConfig()">保存项目配置</button>
         </div>
@@ -778,6 +788,8 @@
       document.getElementById('cfg_cover2').value = config.cover2 || '';
       document.getElementById('cfg_cover3').value = config.cover3 || '';
       document.getElementById('cfg_cover4').value = config.cover4 || '';
+      document.getElementById('cfg_cover5').value = config.cover5 || '';
+      document.getElementById('cfg_cover6').value = config.cover6 || '';
 
       // 设置标题/封面数量并显示对应输入框
       const titleCount = config.title_count || '2';
@@ -898,7 +910,9 @@
         { key: 'cover1', value: document.getElementById('cfg_cover1').value },
         { key: 'cover2', value: document.getElementById('cfg_cover2').value },
         { key: 'cover3', value: document.getElementById('cfg_cover3').value },
-        { key: 'cover4', value: document.getElementById('cfg_cover4').value }
+        { key: 'cover4', value: document.getElementById('cfg_cover4').value },
+        { key: 'cover5', value: document.getElementById('cfg_cover5').value },
+        { key: 'cover6', value: document.getElementById('cfg_cover6').value }
       ];
 
       const { error } = await supabase.from('form_config').upsert(
@@ -926,6 +940,8 @@
       const count = parseInt(document.getElementById('cfg_cover_count').value);
       document.getElementById('cover3Row').style.display = count >= 3 ? 'block' : 'none';
       document.getElementById('cover4Row').style.display = count >= 4 ? 'block' : 'none';
+      document.getElementById('cover5Row').style.display = count >= 5 ? 'block' : 'none';
+      document.getElementById('cover6Row').style.display = count >= 6 ? 'block' : 'none';
     }
 
     // 保存内容配置
@@ -1094,20 +1110,38 @@
       });
       document.getElementById('scoreStats').innerHTML = scoreHtml;
 
-      // 标题投票统计
+      // 标题投票统计（适配多选）
       const titleCount = {};
       data.forEach(item => {
-        const key = item.q3_choice || '未填写';
-        titleCount[key] = (titleCount[key] || 0) + 1;
+        let choices = [];
+        try {
+          choices = JSON.parse(item.q3_choice || '[]');
+          if (!Array.isArray(choices)) choices = [item.q3_choice];
+        } catch(e) {
+          choices = item.q3_choice ? [item.q3_choice] : [];
+        }
+        if (choices.length === 0) choices = ['未填写'];
+        choices.forEach(key => {
+          titleCount[key] = (titleCount[key] || 0) + 1;
+        });
       });
       document.getElementById('titlePollStats').innerHTML = Object.entries(titleCount)
         .map(([k,v]) => `<div class="poll-item"><span>${k}</span><span>${v}票</span></div>`).join('');
 
-      // 封面投票统计
+      // 封面投票统计（适配多选）
       const coverCount = {};
       data.forEach(item => {
-        const key = item.q4_choice || '未填写';
-        coverCount[key] = (coverCount[key] || 0) + 1;
+        let choices = [];
+        try {
+          choices = JSON.parse(item.q4_choice || '[]');
+          if (!Array.isArray(choices)) choices = [item.q4_choice];
+        } catch(e) {
+          choices = item.q4_choice ? [item.q4_choice] : [];
+        }
+        if (choices.length === 0) choices = ['未填写'];
+        choices.forEach(key => {
+          coverCount[key] = (coverCount[key] || 0) + 1;
+        });
       });
       document.getElementById('coverPollStats').innerHTML = Object.entries(coverCount)
         .map(([k,v]) => `<div class="poll-item"><span>${k}</span><span>${v}票</span></div>`).join('');
